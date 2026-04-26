@@ -52,6 +52,7 @@
     font-weight: 600; color: var(--gold-light);
   }
   .header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .header-bio { font-size: 10px; color: var(--muted); margin-top: 2px; opacity: 0.7; }
   .header-actions { display: flex; gap: 8px; align-items: center; }
   .lang-toggle {
     display: flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
@@ -156,6 +157,13 @@
     display: flex; align-items: center; gap: 8px; text-align: left;
   }
   .cat-btn:hover { background: rgba(201,168,76,0.1); border-color: var(--gold); color: var(--gold-light); }
+  .cat-btn.about { grid-column: span 2; justify-content: center; border-color: rgba(201,168,76,0.35); background: rgba(201,168,76,0.07); color: var(--gold-light); }
+  .cat-btn.about:hover { background: rgba(201,168,76,0.15); }
+  .profile-card { display: flex; gap: 12px; align-items: flex-start; padding: 2px 0; }
+  .profile-photo { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid rgba(201,168,76,0.4); }
+  .profile-info { flex: 1; font-size: 12px; line-height: 1.7; }
+  .profile-name { font-family: 'Playfair Display', serif; font-size: 14px; color: var(--gold-light); font-weight: 600; }
+  .profile-contacts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .sub-list { display: flex; flex-wrap: wrap; gap: 6px; }
   .qr-btn {
     white-space: nowrap; padding: 6px 13px; border-radius: 20px;
@@ -251,6 +259,7 @@
     <div class="header-info">
       <div class="header-name">Александр Танцюра</div>
       <div class="header-sub">Бухгалтер · Аликанте 🇪🇸</div>
+      <div class="header-bio">10 лет опыта · русскоязычный</div>
     </div>
     <div class="lang-toggle">
       <button class="lang-btn active" id="btnRU" onclick="setLang('ru')">RU</button>
@@ -464,8 +473,42 @@ function showCategories() {
     btn.onclick = () => showSubcategories(i);
     grid.appendChild(btn);
   });
+  const aboutBtn = document.createElement('button');
+  aboutBtn.className = 'cat-btn about';
+  aboutBtn.innerHTML = `<span>👤</span><span>${currentLang === 'ru' ? 'Об Александре' : 'Sobre Aleksandr'}</span>`;
+  aboutBtn.onclick = showProfile;
+  grid.appendChild(aboutBtn);
   qr.innerHTML = '';
   qr.appendChild(grid);
+}
+
+function showProfile() {
+  const qr = document.getElementById('quickReplies');
+  const isRu = currentLang === 'ru';
+  const backLabel = isRu ? '← Все темы' : '← Todos los temas';
+  const back = document.createElement('button');
+  back.className = 'back-btn';
+  back.textContent = backLabel;
+  back.onclick = showCategories;
+  const card = document.createElement('div');
+  card.className = 'profile-card';
+  card.innerHTML = `
+    <img class="profile-photo" src="/sascha.jpg" alt="Александр Танцюра">
+    <div class="profile-info">
+      <div class="profile-name">Александр Танцюра</div>
+      <div style="color:var(--muted)">📍 Аликанте, Испания</div>
+      <div style="color:var(--muted)">⭐ 10 лет опыта</div>
+      <div style="color:var(--muted)">🗣 ${isRu ? 'Русский, украинский, испанский' : 'Ruso, ucraniano, español'}</div>
+      <div style="color:var(--muted)">📋 ${isRu ? 'Налоги и бухгалтерия в Испании' : 'Fiscalidad y contabilidad en España'}</div>
+      <div class="profile-contacts">
+        <a class="contact-btn whatsapp" href="https://wa.me/34623392451" target="_blank" style="font-size:11px;padding:5px 10px">WhatsApp</a>
+        <a class="contact-btn telegram" href="https://t.me/AlexanderTantsiura" target="_blank" style="font-size:11px;padding:5px 10px">Telegram</a>
+        <a class="contact-btn site" href="https://nalogspain.com/" target="_blank" style="font-size:11px;padding:5px 10px">nalogspain.com</a>
+      </div>
+    </div>`;
+  qr.innerHTML = '';
+  qr.appendChild(back);
+  qr.appendChild(card);
 }
 
 function showSubcategories(catIndex) {
