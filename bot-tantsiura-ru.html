@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Александр Танцюра — Бухгалтер в Испании</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --gold: #C9A84C; --gold-light: #E8C97A;
+    --dark: #0F0F0F; --dark2: #1A1A1A; --dark3: #242424;
+    --surface: #2A2A2A; --border: rgba(201,168,76,0.2);
+    --text: #E8E0D0; --muted: #8A8070;
+  }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--dark); color: var(--text);
+    min-height: 100vh; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    padding: 20px;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(201,168,76,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(201,168,76,0.04) 0%, transparent 50%);
+  }
+  .wrapper {
+    width: 100%; max-width: 480px;
+    display: flex; flex-direction: column;
+    height: 92vh; max-height: 820px;
+  }
+
+  /* Header */
+  .header {
+    background: var(--dark2); border: 1px solid var(--border);
+    border-bottom: none; border-radius: 20px 20px 0 0;
+    padding: 16px 20px; display: flex; align-items: center; gap: 12px;
+  }
+  .avatar {
+    width: 46px; height: 46px; border-radius: 50%; overflow: hidden;
+    background: linear-gradient(135deg, var(--gold), #8B6914);
+    flex-shrink: 0; box-shadow: 0 0 20px rgba(201,168,76,0.3);
+    cursor: pointer; transition: transform 0.2s;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Playfair Display', serif; font-size: 16px;
+    font-weight: 600; color: var(--dark); letter-spacing: 0.5px;
+  }
+  .avatar:hover { transform: scale(1.05); }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  .header-info { flex: 1; }
+  .header-name {
+    font-family: 'Playfair Display', serif; font-size: 15px;
+    font-weight: 600; color: var(--gold-light);
+  }
+  .header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .lang-toggle {
+    display: flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
+  }
+  .lang-btn {
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+    background: transparent; border: none; color: var(--muted);
+    font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .lang-btn.active { background: rgba(201,168,76,0.2); color: var(--gold-light); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4CAF50; box-shadow: 0 0 8px rgba(76,175,80,0.6);
+    animation: pulse 2s infinite; flex-shrink: 0;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Contact bar */
+  .contact-bar {
+    background: var(--dark3); border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    padding: 8px 12px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  }
+  .contact-bar::-webkit-scrollbar { display: none; }
+  .contact-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 12px; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    text-decoration: none;
+  }
+  .contact-btn:hover { background: rgba(201,168,76,0.1); border-color: var(--gold); color: var(--gold-light); }
+  .contact-btn.whatsapp:hover { background: rgba(37,211,102,0.1); border-color: #25D366; color: #25D366; }
+  .contact-btn.telegram:hover { background: rgba(0,136,204,0.1); border-color: #0088cc; color: #0088cc; }
+  .contact-btn.site:hover { background: rgba(201,168,76,0.1); border-color: var(--gold); color: var(--gold-light); }
+
+  /* Chat */
+  .chat {
+    flex: 1; background: var(--dark2);
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth;
+  }
+  .chat::-webkit-scrollbar { width: 4px; }
+  .chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .msg { max-width: 85%; animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .msg.bot { align-self: flex-start; }
+  .msg.user { align-self: flex-end; }
+  .bubble { padding: 11px 15px; border-radius: 18px; font-size: 14px; line-height: 1.6; }
+  .msg.bot .bubble {
+    background: var(--surface); border: 1px solid var(--border);
+    border-bottom-left-radius: 4px; color: var(--text);
+  }
+  .msg.user .bubble {
+    background: linear-gradient(135deg, var(--gold), #A8881E);
+    border-bottom-right-radius: 4px; color: var(--dark); font-weight: 500;
+  }
+
+  /* Feedback */
+  .msg-footer { display: flex; align-items: center; gap: 6px; margin-top: 4px; padding: 0 2px; }
+  .msg-time { font-size: 10px; color: var(--muted); }
+  .badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    font-weight: 500; letter-spacing: 0.3px;
+  }
+  .badge-faq { background: rgba(201,168,76,0.15); color: var(--gold-light); border: 1px solid rgba(201,168,76,0.3); }
+  .badge-ai { background: rgba(100,180,100,0.12); color: #90EE90; border: 1px solid rgba(100,180,100,0.25); }
+  .feedback-btns { display: flex; gap: 4px; margin-left: auto; }
+  .fb-btn {
+    background: none; border: none; cursor: pointer; font-size: 13px;
+    opacity: 0.4; transition: all 0.2s; padding: 0;
+  }
+  .fb-btn:hover { opacity: 1; transform: scale(1.2); }
+  .fb-btn.active { opacity: 1; }
+
+  /* Typing */
+  .typing { align-self: flex-start; max-width: 82%; }
+  .typing .bubble {
+    background: var(--surface); border: 1px solid var(--border);
+    border-bottom-left-radius: 4px; padding: 13px 16px;
+    display: flex; gap: 5px; align-items: center;
+  }
+  .typing-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--gold); animation: typingBounce 1.2s infinite;
+  }
+  .typing-dot:nth-child(2){animation-delay:0.2s}
+  .typing-dot:nth-child(3){animation-delay:0.4s}
+  @keyframes typingBounce { 0%,60%,100%{transform:translateY(0);opacity:0.4} 30%{transform:translateY(-5px);opacity:1} }
+
+  /* Quick replies */
+  .quick-replies {
+    padding: 8px 12px 4px; background: var(--dark2);
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  }
+  .quick-replies::-webkit-scrollbar { display: none; }
+  .qr-btn {
+    white-space: nowrap; padding: 6px 13px; border-radius: 20px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--gold-light); font-family: 'DM Sans', sans-serif;
+    font-size: 12px; cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+  }
+  .qr-btn:hover { background: rgba(201,168,76,0.1); border-color: var(--gold); }
+
+  /* Input */
+  .input-area {
+    background: var(--dark3); border: 1px solid var(--border);
+    border-top: 1px solid rgba(201,168,76,0.15);
+    border-radius: 0 0 20px 20px; padding: 14px;
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  .input-field {
+    flex: 1; background: var(--surface); border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 14px; padding: 11px 15px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+    resize: none; outline: none; max-height: 100px;
+    transition: border-color 0.2s; line-height: 1.4;
+  }
+  .input-field::placeholder { color: var(--muted); }
+  .input-field:focus { border-color: rgba(201,168,76,0.4); }
+  .send-btn {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--gold), #A8881E);
+    border: none; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+    transition: all 0.2s; box-shadow: 0 4px 12px rgba(201,168,76,0.3);
+  }
+  .send-btn:hover { transform: scale(1.05); }
+  .send-btn:active { transform: scale(0.97); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .date-divider {
+    text-align: center; font-size: 11px; color: var(--muted);
+    letter-spacing: 0.8px; text-transform: uppercase; padding: 4px 0; position: relative;
+  }
+  .date-divider::before, .date-divider::after {
+    content:''; position:absolute; top:50%; width:28%; height:1px; background:var(--border);
+  }
+  .date-divider::before{left:0} .date-divider::after{right:0}
+  .disclaimer { text-align:center; font-size:10px; color:var(--muted); padding:6px 16px 0; opacity:0.7; }
+  .term { color: var(--gold-light); font-weight: 500; }
+
+  /* Stats panel */
+  .stats-panel {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; padding: 20px;
+  }
+  .stats-panel.open { display: flex; }
+  .stats-box {
+    background: var(--dark2); border: 1px solid var(--border); border-radius: 20px;
+    padding: 24px; width: 100%; max-width: 440px; max-height: 80vh; overflow-y: auto;
+  }
+  .stats-title {
+    font-family: 'Playfair Display', serif; font-size: 18px;
+    color: var(--gold-light); margin-bottom: 16px; display: flex; justify-content: space-between;
+  }
+  .stats-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; }
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid rgba(201,168,76,0.1); font-size: 13px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-count { color: var(--gold-light); font-weight: 600; font-size: 15px; }
+  .stat-bar-wrap { width: 100%; background: var(--surface); border-radius: 4px; height: 4px; margin-top: 4px; }
+  .stat-bar { height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--gold), var(--gold-light)); }
+  .stats-summary { display: flex; gap: 12px; margin-bottom: 16px; }
+  .summary-card {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px; text-align: center;
+  }
+  .summary-num { font-size: 24px; font-weight: 600; color: var(--gold-light); }
+  .summary-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="avatar" onclick="document.querySelector('.stats-panel').classList.toggle('open')" title="Статистика">АТ</div>
+    <div class="header-info">
+      <div class="header-name">Александр Танцюра</div>
+      <div class="header-sub">Бухгалтер · Аликанте 🇪🇸</div>
+    </div>
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="btnRU" onclick="setLang('ru')">RU</button>
+      <button class="lang-btn" id="btnES" onclick="setLang('es')">ES</button>
+    </div>
+    <div class="status-dot"></div>
+  </div>
+
+  <!-- Contact bar -->
+  <div class="contact-bar">
+    <a class="contact-btn whatsapp" href="https://wa.me/34623392451" target="_blank">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      WhatsApp
+    </a>
+    <a class="contact-btn telegram" href="https://t.me/AlexanderTantsiura" target="_blank">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+      Telegram
+    </a>
+    <a class="contact-btn site" href="https://nalogspain.com/" target="_blank">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      nalogspain.com
+    </a>
+    <button class="contact-btn" onclick="copyEmail()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      <span id="emailBtnText">Email</span>
+    </button>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat" id="chat">
+    <div class="date-divider" id="dateDivider">Сегодня</div>
+    <div class="msg bot">
+      <div class="bubble" id="welcomeMsg">
+        Привет! 👋 Я виртуальный помощник <strong>Александра Танцюры</strong> — бухгалтера в Аликанте.<br><br>
+        Отвечаю на частые вопросы по налогам и бухгалтерии в Испании 🇪🇸<br>
+        Для личной консультации — кнопки выше. С чего начнём?
+      </div>
+      <div class="msg-footer">
+        <span class="msg-time" id="welcomeTime"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick replies -->
+  <div class="quick-replies" id="quickReplies">
+    <button class="qr-btn" onclick="sendQuick('Как стать автономо?')">💼 Стать autónomo</button>
+    <button class="qr-btn" onclick="sendQuick('Что такое IVA?')">🧾 IVA / НДС</button>
+    <button class="qr-btn" onclick="sendQuick('Когда подавать декларацию о доходах?')">📅 Декларация</button>
+    <button class="qr-btn" onclick="sendQuick('Что такое modelo 303?')">📋 Modelo 303</button>
+    <button class="qr-btn" onclick="sendQuick('Какие налоги платит autónomo?')">💰 Налоги</button>
+    <button class="qr-btn" onclick="sendQuick('Что такое NIE?')">🪪 NIE / NIF</button>
+    <button class="qr-btn" onclick="sendQuick('Как получить certificado digital?')">🔐 Сертификат</button>
+    <button class="qr-btn" onclick="sendQuick('Что такое tarifa plana?')">⭐ Tarifa plana</button>
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <textarea class="input-field" id="userInput" placeholder="Напишите ваш вопрос..." rows="1"
+      onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0F0F0F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+  <div class="disclaimer" id="disclaimer">Ответы носят информационный характер. По конкретным ситуациям — обращайтесь к Александру лично.</div>
+</div>
+
+<!-- Stats Panel (только для Саши — открывается кликом на фото) -->
+<div class="stats-panel" id="statsPanel">
+  <div class="stats-box">
+    <div class="stats-title">
+      📊 Статистика вопросов
+      <button class="stats-close" onclick="document.querySelector('.stats-panel').classList.remove('open')">✕</button>
+    </div>
+    <div class="stats-summary">
+      <div class="summary-card">
+        <div class="summary-num" id="totalQuestions">0</div>
+        <div class="summary-label">Всего вопросов</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" id="faqHits">0</div>
+        <div class="summary-label">FAQ ответов</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" id="aiHits">0</div>
+        <div class="summary-label">AI ответов</div>
+      </div>
+    </div>
+    <div id="topicsList"></div>
+  </div>
+</div>
+
+<script>
+// ── Контакты ────────────────────────────────────────────────────────────────
+const CONTACTS = {
+  whatsapp: '+34623392451',
+  telegram: '@AlexanderTantsiura',
+  email: 'awanderer66@gmail.com',
+  site: 'https://nalogspain.com/'
+};
+
+// ── Язык ─────────────────────────────────────────────────────────────────────
+let currentLang = localStorage.getItem('lang') || 'ru';
+
+const TEXTS = {
+  ru: {
+    welcome: 'Привет! 👋 Я виртуальный помощник <strong>Александра Танцюры</strong> — бухгалтера в Аликанте.<br><br>Отвечаю на частые вопросы по налогам и бухгалтерии в Испании 🇪🇸<br>Для личной консультации — кнопки выше. С чего начнём?',
+    placeholder: 'Напишите ваш вопрос...',
+    disclaimer: 'Ответы носят информационный характер. По конкретным ситуациям — обращайтесь к Александру лично.',
+    today: 'Сегодня',
+    error: 'Ошибка соединения. Пожалуйста, попробуйте ещё раз. 🙏',
+    complex: 'Этот вопрос лучше обсудить лично с Александром — он разберёт вашу ситуацию подробно.<br><br>📱 <a href="https://wa.me/34623392451" style="color:var(--gold-light)">Написать в WhatsApp</a> · <a href="https://t.me/AlexanderTantsiura" style="color:var(--gold-light)">Telegram</a>',
+  },
+  es: {
+    welcome: '¡Hola! 👋 Soy el asistente virtual de <strong>Aleksandr Tantsiura</strong>, asesor fiscal en Alicante.<br><br>Respondo preguntas frecuentes sobre impuestos en España 🇪🇸<br>Para consulta personal — usa los botones de arriba.',
+    placeholder: 'Escribe tu pregunta...',
+    disclaimer: 'Las respuestas son orientativas. Para casos específicos, contacta directamente con Aleksandr.',
+    today: 'Hoy',
+    error: 'Error de conexión. Por favor, inténtalo de nuevo. 🙏',
+    complex: 'Esta pregunta es mejor consultarla directamente con Aleksandr.<br><br>📱 <a href="https://wa.me/34623392451" style="color:var(--gold-light)">WhatsApp</a> · <a href="https://t.me/AlexanderTantsiura" style="color:var(--gold-light)">Telegram</a>',
+  }
+};
+
+const QUICK_RU = [
+  ['💼 Стать autónomo','Как стать автономо?'],
+  ['🧾 IVA / НДС','Что такое IVA?'],
+  ['📅 Декларация','Когда подавать декларацию о доходах?'],
+  ['📋 Modelo 303','Что такое modelo 303?'],
+  ['💰 Налоги','Какие налоги платит autónomo?'],
+  ['🪪 NIE / NIF','Что такое NIE?'],
+  ['🔐 Сертификат','Как получить certificado digital?'],
+  ['⭐ Tarifa plana','Что такое tarifa plana?'],
+];
+const QUICK_ES = [
+  ['💼 Alta autónomo','¿Cómo darme de alta como autónomo?'],
+  ['🧾 ¿Qué es el IVA?','¿Qué es el IVA y cómo funciona?'],
+  ['📅 Renta anual','¿Cuándo presentar la declaración de la renta?'],
+  ['📋 Modelo 303','¿Cuándo presentar el modelo 303?'],
+  ['💰 Impuestos','¿Qué impuestos paga un autónomo?'],
+  ['🪪 NIE / NIF','¿Qué es el NIE y cómo obtenerlo?'],
+  ['🔐 Certificado','¿Cómo obtener el certificado digital?'],
+  ['⭐ Tarifa plana','¿Qué es la tarifa plana?'],
+];
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('lang', lang);
+  document.getElementById('btnRU').classList.toggle('active', lang==='ru');
+  document.getElementById('btnES').classList.toggle('active', lang==='es');
+  document.getElementById('userInput').placeholder = TEXTS[lang].placeholder;
+  document.getElementById('disclaimer').textContent = TEXTS[lang].disclaimer;
+  document.getElementById('dateDivider').textContent = TEXTS[lang].today;
+  // Update quick replies
+  const qr = document.getElementById('quickReplies');
+  qr.innerHTML = '';
+  const list = lang === 'ru' ? QUICK_RU : QUICK_ES;
+  list.forEach(([label, q]) => {
+    const btn = document.createElement('button');
+    btn.className = 'qr-btn';
+    btn.textContent = label;
+    btn.onclick = () => sendQuick(q);
+    qr.appendChild(btn);
+  });
+}
+
+// ── FAQ ──────────────────────────────────────────────────────────────────────
+const FAQ_RU = [
+  {
+    keys: ['автономо','autónomo','autonomous','стать автоном','зарегистрироваться','открыть ип','самозанят'],
+    topic: 'Autónomo — регистрация',
+    answer: `Чтобы стать <span class="term">autónomo</span> в Испании, нужно 3 шага:<br><br>
+1️⃣ Получить <span class="term">NIE</span> — если ещё нет<br>
+2️⃣ Встать на учёт в налоговой через <span class="term">modelo 036</span> или <span class="term">037</span><br>
+3️⃣ Зарегистрироваться в <span class="term">Seguridad Social</span><br><br>
+Ежемесячный взнос — от <span class="term">~230 €</span> в зависимости от дохода. Новые autónomos получают льготу <span class="term">tarifa plana</span> — всего <span class="term">80 €/мес</span> в первый год. 💡 Для разбора вашей конкретной ситуации — лучше обсудить с Александром.`
+  },
+  {
+    keys: ['iva','ндс','что такое iva','налог на добавленную'],
+    topic: 'IVA / НДС',
+    answer: `<span class="term">IVA</span> — испанский аналог НДС.<br><br>
+Основные ставки:<br>
+🔹 <span class="term">21%</span> — стандартная (большинство товаров и услуг)<br>
+🔹 <span class="term">10%</span> — пониженная (еда в ресторанах, транспорт)<br>
+🔹 <span class="term">4%</span> — льготная (базовые продукты, книги, лекарства)<br><br>
+Как autónomo вы выставляете IVA клиентам и отчитываетесь раз в квартал через <span class="term">modelo 303</span>.`
+  },
+  {
+    keys: ['modelo 303','модело 303','квартальный отчёт','квартальная декларация iva'],
+    topic: 'Modelo 303',
+    answer: `<span class="term">Modelo 303</span> — квартальная декларация по IVA. Сдаётся 4 раза в год:<br><br>
+📅 1 квартал (янв–март) → до <span class="term">20 апреля</span><br>
+📅 2 квартал (апр–июнь) → до <span class="term">20 июля</span><br>
+📅 3 квартал (июль–сент) → до <span class="term">20 октября</span><br>
+📅 4 квартал (окт–дек) → до <span class="term">30 января</span> следующего года<br><br>
+Разница между выставленным и уплаченным IVA идёт в <span class="term">Hacienda</span> или засчитывается.`
+  },
+  {
+    keys: ['декларация о доходах','renta','irpf','подоходный','modelo 100','ежегодная декларация','когда подавать декларацию'],
+    topic: 'Декларация / Renta',
+    answer: `<span class="term">Declaración de la Renta</span> — ежегодная декларация по подоходному налогу (<span class="term">IRPF</span>).<br><br>
+📅 Подаётся раз в год: обычно <span class="term">апрель–июнь</span> за предыдущий год.<br><br>
+Кто обязан:<br>
+✅ Все <span class="term">autónomos</span><br>
+✅ Наёмные работники с доходом от <span class="term">22 000 €/год</span> (один работодатель)<br>
+✅ С доходом от <span class="term">15 000 €</span> при нескольких работодателях<br><br>
+Ставки IRPF — прогрессивные, от 19% до 47%.`
+  },
+  {
+    keys: ['налоги автономо','налоги autónomo','сколько платит автономо','какие налоги','что платит автономо'],
+    topic: 'Налоги autónomo',
+    answer: `Как <span class="term">autónomo</span> вы платите три вещи:<br><br>
+1️⃣ <span class="term">IVA</span> — каждый квартал (modelo 303)<br>
+2️⃣ <span class="term">IRPF</span> — авансы каждый квартал (modelo 130) + итог раз в год (modelo 100)<br>
+3️⃣ <span class="term">Cuota de autónomos</span> — взнос в соцстрах каждый месяц (~230–500 €)<br><br>
+💡 Многие расходы можно вычесть: аренда, телефон, транспорт, ПО и др.`
+  },
+  {
+    keys: ['nie','nif','cif','идентификационный номер','что такое nie','как получить nie'],
+    topic: 'NIE / NIF / CIF',
+    answer: `🪪 <span class="term">NIE</span> — номер иностранца. Нужен для работы, счёта в банке, регистрации бизнеса. Оформляется в полиции или консульстве.<br><br>
+🪪 <span class="term">NIF</span> — налоговый номер. Для иностранцев это и есть NIE.<br><br>
+🏢 <span class="term">CIF</span> — для юридических лиц (компаний). Сейчас официально называется NIF de empresa.<br><br>
+NIE — это первый шаг перед любой деятельностью в Испании.`
+  },
+  {
+    keys: ['certificado digital','цифровой сертификат','электронная подпись','как получить сертификат','clave pin'],
+    topic: 'Certificado digital',
+    answer: `<span class="term">Certificado digital</span> — электронная подпись для общения с госорганами онлайн.<br><br>
+Нужен для:<br>
+✅ Подачи деклараций в <span class="term">Hacienda</span><br>
+✅ Регистрации в <span class="term">Seguridad Social</span><br>
+✅ Любых онлайн-запросов к госструктурам<br><br>
+Как получить: сайт <span class="term">fnmt.es</span> → запрос → личное подтверждение в налоговой → скачать.<br>
+Альтернатива — <span class="term">Cl@ve PIN</span>: проще, подходит для большинства операций.`
+  },
+  {
+    keys: ['tarifa plana','тарифа плана','льготная ставка','скидка для новых автономо'],
+    topic: 'Tarifa plana',
+    answer: `<span class="term">Tarifa plana</span> — льготный взнос для новых autónomos.<br><br>
+С 2023 года:<br>
+🔹 Первые <span class="term">12 месяцев</span> — фиксированный взнос <span class="term">80 €/месяц</span> вместо ~300 €<br>
+🔹 Далее взнос рассчитывается по реальному доходу<br><br>
+Условия:<br>
+✅ Первая регистрация (или не было регистрации последние 2 года)<br>
+✅ Нет задолженностей перед налоговой<br><br>
+💡 Экономия ~2 600 € в первый год — обязательно воспользуйтесь!`
+  },
+];
+
+const FAQ_ES = [
+  {
+    keys: ['autónomo','alta autónomo','registrarse','autónomo españa'],
+    topic: 'Alta autónomo',
+    answer: `Para darte de alta como <span class="term">autónomo</span> en España necesitas 3 pasos:<br><br>
+1️⃣ Obtener el <span class="term">NIE</span> si aún no lo tienes<br>
+2️⃣ Registrarte en <span class="term">Hacienda</span> con el modelo 036 o 037<br>
+3️⃣ Darte de alta en la <span class="term">Seguridad Social</span> (RETA)<br><br>
+La cuota mensual va desde <span class="term">~230 €</span> según tus ingresos. Los nuevos autónomos pueden acogerse a la <span class="term">tarifa plana de 80 €/mes</span> el primer año. 💡 Para tu caso concreto, mejor hablarlo con Aleksandr.`
+  },
+  {
+    keys: ['iva','impuesto sobre el valor','qué es el iva'],
+    topic: 'IVA',
+    answer: `El <span class="term">IVA</span> es el Impuesto sobre el Valor Añadido.<br><br>
+Tipos:<br>
+🔹 <span class="term">21%</span> — general (mayoría de bienes y servicios)<br>
+🔹 <span class="term">10%</span> — reducido (restaurantes, transporte)<br>
+🔹 <span class="term">4%</span> — superreducido (alimentos básicos, libros, medicamentos)<br><br>
+Como autónomo repercutes IVA a tus clientes y lo declaras cada trimestre con el <span class="term">modelo 303</span>.`
+  },
+  {
+    keys: ['modelo 303','declaración iva trimestral'],
+    topic: 'Modelo 303',
+    answer: `El <span class="term">modelo 303</span> es la declaración trimestral del IVA:<br><br>
+📅 1T (ene–mar) → hasta el <span class="term">20 de abril</span><br>
+📅 2T (abr–jun) → hasta el <span class="term">20 de julio</span><br>
+📅 3T (jul–sep) → hasta el <span class="term">20 de octubre</span><br>
+📅 4T (oct–dic) → hasta el <span class="term">30 de enero</span> del año siguiente`
+  },
+];
+
+// ── Статистика ───────────────────────────────────────────────────────────────
+let stats = JSON.parse(localStorage.getItem('botStats') || '{"total":0,"faq":0,"ai":0,"topics":{}}');
+
+function saveStats() { localStorage.setItem('botStats', JSON.stringify(stats)); }
+
+function trackQuestion(topic, type) {
+  stats.total++;
+  if (type === 'faq') stats.faq++; else stats.ai++;
+  if (topic) stats.topics[topic] = (stats.topics[topic] || 0) + 1;
+  saveStats();
+  updateStatsUI();
+}
+
+function updateStatsUI() {
+  document.getElementById('totalQuestions').textContent = stats.total;
+  document.getElementById('faqHits').textContent = stats.faq;
+  document.getElementById('aiHits').textContent = stats.ai;
+  const sorted = Object.entries(stats.topics).sort((a,b) => b[1]-a[1]).slice(0,8);
+  const max = sorted[0]?.[1] || 1;
+  document.getElementById('topicsList').innerHTML = sorted.map(([topic, count]) => `
+    <div class="stat-row">
+      <div>
+        <div>${topic}</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:${Math.round(count/max*100)}%"></div></div>
+      </div>
+      <span class="stat-count">${count}</span>
+    </div>
+  `).join('');
+}
+
+// ── История чата ─────────────────────────────────────────────────────────────
+let chatHistory = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+
+function saveHistory(role, text) {
+  chatHistory.push({ role, text, time: Date.now() });
+  if (chatHistory.length > 50) chatHistory = chatHistory.slice(-50);
+  localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+}
+
+// ── Утилиты ──────────────────────────────────────────────────────────────────
+let isLoading = false;
+
+function getTime() {
+  return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+function sendQuick(text) {
+  document.getElementById('userInput').value = text;
+  sendMessage();
+}
+
+function findFaqAnswer(text) {
+  const lower = text.toLowerCase();
+  const faqList = currentLang === 'ru' ? FAQ_RU : FAQ_ES;
+  for (const item of faqList) {
+    if (item.keys.some(k => lower.includes(k))) return item;
+  }
+  return null;
+}
+
+function appendMessage(html, role, badge, topic) {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const badgeHtml = badge ? `<span class="badge ${badge.cls}">${badge.label}</span>` : '';
+  const feedbackHtml = role === 'bot' ? `
+    <div class="feedback-btns">
+      <button class="fb-btn" onclick="feedback(this,'👍')" title="Полезно">👍</button>
+      <button class="fb-btn" onclick="feedback(this,'👎')" title="Не полезно">👎</button>
+    </div>` : '';
+  div.innerHTML = `<div class="bubble">${html}</div>
+    <div class="msg-footer">
+      <span class="msg-time">${getTime()}</span>${badgeHtml}${feedbackHtml}
+    </div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function feedback(btn, type) {
+  btn.parentElement.querySelectorAll('.fb-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Можно отправить аналитику сюда
+}
+
+function showTyping() {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'typing'; div.id = 'typingIndicator';
+  div.innerHTML = `<div class="bubble"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+  chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
+}
+function hideTyping() {
+  const el = document.getElementById('typingIndicator'); if (el) el.remove();
+}
+
+// ── Системный промпт ─────────────────────────────────────────────────────────
+const SYSTEM_RU = `Ты виртуальный помощник Александра Танцюры — бухгалтера и налогового консультанта в Испании (Аликанте). Сайт: nalogspain.com
+
+Отвечай на РУССКОМ языке. Клиенты — русскоговорящие люди в Испании.
+Темы: IVA, IRPF, IS, autónomo, Seguridad Social, modelos 303/130/100/200, NIE/NIF, Hacienda, certificado digital, residencia fiscal.
+Правила: отвечай кратко (макс 5 предложений), испанские термины объясняй в скобках, для специфических вопросов — предлагай связаться с Александром напрямую через WhatsApp +34623392451 или Telegram @AlexanderTantsiura. Никогда не придумывай цифры если не уверен.`;
+
+const SYSTEM_ES = `Eres el asistente virtual de Aleksandr Tantsiura, asesor fiscal en Alicante. Web: nalogspain.com
+Responde siempre en español. Máximo 5 oraciones. Para casos específicos, sugiere contactar a Aleksandr: WhatsApp +34623392451 o Telegram @AlexanderTantsiura. No inventes cifras.`;
+
+// ── Основная функция ─────────────────────────────────────────────────────────
+async function sendMessage() {
+  if (isLoading) return;
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+  isLoading = true;
+
+  appendMessage(text, 'user');
+  saveHistory('user', text);
+
+  const faqItem = findFaqAnswer(text);
+  if (faqItem) {
+    await new Promise(r => setTimeout(r, 500));
+    showTyping();
+    await new Promise(r => setTimeout(r, 700));
+    hideTyping();
+    appendMessage(faqItem.answer, 'bot', { cls: 'badge-faq', label: '⚡ FAQ' });
+    trackQuestion(faqItem.topic, 'faq');
+    saveHistory('bot', faqItem.answer);
+    isLoading = false;
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('userInput').focus();
+    return;
+  }
+
+  showTyping();
+  try {
+    const system = currentLang === 'ru' ? SYSTEM_RU : SYSTEM_ES;
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system,
+        messages: [{ role: 'user', content: text }]
+      })
+    });
+    const data = await response.json();
+    hideTyping();
+    const reply = data.content?.[0]?.text || TEXTS[currentLang].error;
+    appendMessage(reply, 'bot', { cls: 'badge-ai', label: '✨ AI' });
+    trackQuestion('Другое', 'ai');
+    saveHistory('bot', reply);
+  } catch (err) {
+    hideTyping();
+    appendMessage(TEXTS[currentLang].error, 'bot');
+  }
+
+  isLoading = false;
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('userInput').focus();
+}
+
+// ── Копировать email ─────────────────────────────────────────────────────────
+function copyEmail() {
+  navigator.clipboard.writeText('awanderer66@gmail.com').then(() => {
+    const btn = document.getElementById('emailBtnText');
+    btn.textContent = '✓ Скопировано!';
+    setTimeout(() => btn.textContent = 'Email', 2000);
+  });
+}
+
+// ── Инициализация ─────────────────────────────────────────────────────────────
+document.getElementById('welcomeTime').textContent = getTime();
+setLang(currentLang);
+updateStatsUI();
+</script>
+</body>
+</html>
