@@ -78,23 +78,26 @@ pm2 stop bot-nalog
 
 ## Änderungen deployen
 
-### 1. Lokal ändern und committen
-```bash
-# Datei bearbeiten, dann:
-git add .
-git commit -m "Beschreibung der Änderung"
-git push
+### Workflow: lokal → GitHub → Server
+
+```
+1. Datei lokal bearbeiten (index.html oder server.js)
+2. git add .
+3. git commit -m "Was geändert wurde"
+4. git push
+5. ssh root@93.90.200.194 "cd /var/www/nalog && git pull && pm2 restart bot-nalog"
 ```
 
-### 2. Auf den Server hochladen
+**Kurzversion (Schritt 4+5 zusammen):**
 ```bash
-scp bot-tantsiura-ru.html root@93.90.200.194:/var/www/nalog/index.html
+git push && ssh root@93.90.200.194 "cd /var/www/nalog && git pull && pm2 restart bot-nalog"
 ```
 
-> Alternativ (wenn Git auf dem Server eingerichtet ist):
-> ```bash
-> ssh root@93.90.200.194 "cd /var/www/nalog && git pull && pm2 restart bot-nalog"
-> ```
+### Warum dieser Weg?
+- `git commit` → speichert eine Version lokal (Verlauf, Rückgängig machen möglich)
+- `git push` → lädt die Version auf GitHub (Backup, sichtbar im Browser)
+- `git pull` auf dem Server → Server holt die neue Version von GitHub
+- `pm2 restart` → Bot startet neu mit den neuen Dateien
 
 ---
 
