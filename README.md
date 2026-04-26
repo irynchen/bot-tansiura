@@ -99,6 +99,20 @@ git push && ssh root@93.90.200.194 "cd /var/www/nalog && git pull && pm2 restart
 - `git pull` auf dem Server → Server holt die neue Version von GitHub
 - `pm2 restart` → Bot startet neu mit den neuen Dateien
 
+### Wie Versionen gespeichert werden
+
+```
+c:\Users\ishev\Projects\privat\bot-tansiura\
+    index.html        ← aktuelle Datei (sichtbar, bearbeitbar)
+    server.js
+    .git\             ← versteckter Ordner — enthält ALLE Versionen
+```
+
+Auf dem PC sind **alle Versionen** gespeichert (im `.git`-Ordner).  
+Die Dateien selbst zeigen immer nur die aktuelle Version.
+
+Ältere Versionen anschauen oder wiederherstellen → siehe `BEFEHLE.md`.
+
 ---
 
 ## API-Key erneuern
