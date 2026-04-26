@@ -792,10 +792,12 @@ function sendQuick(text) {
 function findFaqAnswer(text) {
   const lower = text.toLowerCase();
   const faqList = currentLang === 'ru' ? FAQ_RU : FAQ_ES;
+  let best = null, bestScore = 0;
   for (const item of faqList) {
-    if (item.keys.some(k => lower.includes(k))) return item;
+    const score = item.keys.filter(k => lower.includes(k)).length;
+    if (score > bestScore) { bestScore = score; best = item; }
   }
-  return null;
+  return best;
 }
 
 function appendMessage(html, role, badge, topic) {
