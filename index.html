@@ -247,7 +247,7 @@
 
   <!-- Header -->
   <div class="header">
-    <div class="avatar" onclick="document.querySelector('.stats-panel').classList.toggle('open')" title="Статистика">АТ</div>
+    <div class="avatar" onclick="document.querySelector('.stats-panel').classList.toggle('open')" title="Статистика"><img src="/sascha.jpg" alt="АТ"></div>
     <div class="header-info">
       <div class="header-name">Александр Танцюра</div>
       <div class="header-sub">Бухгалтер · Аликанте 🇪🇸</div>
@@ -284,9 +284,7 @@
     <div class="date-divider" id="dateDivider">Сегодня</div>
     <div class="msg bot">
       <div class="bubble" id="welcomeMsg">
-        Привет! 👋 Я виртуальный помощник <strong>Александра Танцюры</strong> — бухгалтера в Аликанте.<br><br>
-        Отвечаю на частые вопросы по налогам и бухгалтерии в Испании 🇪🇸<br>
-        Для личной консультации — кнопки выше. С чего начнём?
+        Привет! Я <strong>Александр Танцюра</strong>, бухгалтер в Аликанте. Здесь мой помощник ответит на самые частые вопросы — быстро и бесплатно. Для личной консультации — пишите мне напрямую.
       </div>
       <div class="msg-footer">
         <span class="msg-time" id="welcomeTime"></span>
@@ -359,7 +357,7 @@ let currentLang = localStorage.getItem('lang') || 'ru';
 
 const TEXTS = {
   ru: {
-    welcome: 'Привет! 👋 Я виртуальный помощник <strong>Александра Танцюры</strong> — бухгалтера в Аликанте.<br><br>Отвечаю на частые вопросы по налогам и бухгалтерии в Испании 🇪🇸<br>Для личной консультации — кнопки выше. С чего начнём?',
+    welcome: 'Привет! Я <strong>Александр Танцюра</strong>, бухгалтер в Аликанте. Здесь мой помощник ответит на самые частые вопросы — быстро и бесплатно. Для личной консультации — пишите мне напрямую.',
     placeholder: 'Напишите ваш вопрос...',
     disclaimer: 'Ответы носят информационный характер. По конкретным ситуациям — обращайтесь к Александру лично.',
     today: 'Сегодня',
