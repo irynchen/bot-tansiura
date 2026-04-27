@@ -483,10 +483,11 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
           <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBr()">↵ Перенос</button>
           <div class="fmt-divider"></div>
           <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtRemove()">✕ Убрать формат</button>
-          <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Форматировать ИИ</button>
+          <button class="fmt-btn ai-btn" id="aiGenBtn" onclick="aiGenerate()">✨ Сгенерировать</button>
+          <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Улучшить</button>
         </div>
         <div class="editor" id="mAnswer" contenteditable="true" onkeydown="editorKeydown(event)" onpaste="editorPaste(event)"></div>
-        <div class="editor-hint">Введите текст → выделите → нажмите кнопку. Или: введите → <strong>✨ Форматировать ИИ</strong> сделает всё автоматически.</div>
+        <div class="editor-hint">Введите текст → <strong>✨ Улучшить</strong> отформатирует. Или: заполните тему и ключевые слова → <strong>✨ Сгенерировать</strong> напишет ответ.</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -856,32 +857,56 @@ function wrapSelection(tag,cls) {
   r.insertNode(frag); sel.collapseToEnd();
 }
 
-// ── AI formatting ─────────────────────────────────────────────────────────────
+// ── AI ─────────────────────────────────────────────────────────────────────────
+
+const AI_SYS = `Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания).
+Пишешь FAQ-ответы для русскоязычных клиентов. Отвечай по-русски, кратко и точно.
+Возвращай только JSON: {"html":"...","keywords":[...]}
+HTML: термины/формуляры → <span class="term">слово</span>. Списки: 🔹 пункт, разделены через <br>. Разделы через <br><br>. Без <ul>/<li>. В конце → <strong>совет или призыв</strong>.
+keywords: 5–8 поисковых слов (русский+испанский), строчными.`;
+
+async function aiGenerate() {
+  const topic = document.getElementById('mTopic').value.trim();
+  const keys  = document.getElementById('mKeys').value.trim();
+  if (!topic) { showToast('Сначала заполните тему','error'); return; }
+  const btn = document.getElementById('aiGenBtn');
+  btn.textContent = '⏳ Генерирую…'; btn.disabled = true;
+  const prompt = `Тема FAQ: "${topic}"${keys ? `\nКлючевые слова: ${keys}` : ''}\n\nНапиши полный ответ для FAQ-бота.`;
+  try {
+    const res  = await fetch('/api/admin/chat', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:AI_SYS,messages:[{role:'user',content:prompt}]}) });
+    const data = await res.json();
+    if (!res.ok) { showToast('API-ошибка: '+(data.error?.message||'').slice(0,80),'error'); return; }
+    const raw = data.content?.[0]?.text?.trim() || '';
+    let parsed;
+    try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim()); }
+    catch { document.getElementById('mAnswer').innerHTML = raw; showToast('Сгенерировано ✓','success'); btn.textContent='✨ Сгенерировать'; btn.disabled=false; return; }
+    if (parsed.html) document.getElementById('mAnswer').innerHTML = parsed.html;
+    if (parsed.keywords?.length) document.getElementById('mKeys').value = parsed.keywords.join(', ');
+    showToast('Сгенерировано ✓','success');
+  } catch(err) { showToast('Сетевая ошибка: '+err.message,'error'); }
+  btn.textContent='✨ Сгенерировать'; btn.disabled=false;
+}
 
 async function aiFormat() {
   const editor = document.getElementById('mAnswer');
   const text   = editor.innerText.trim();
-  if (!text) { showToast('Сначала введите текст','error'); return; }
+  if (!text) { showToast('Сначала введите текст для улучшения','error'); return; }
   const btn = document.getElementById('aiFmtBtn');
-  btn.textContent = '⏳ Форматирую…'; btn.disabled = true;
-  const sys = `Formatiere FAQ-Antworten für einen Steuerberater-Chatbot (Spanien, russischsprachige Kunden).
-Gib nur JSON zurück: {"html":"...","keywords":[...]}
-HTML-Regeln: Steuerbegriffe/Formulare → <span class="term">Begriff</span>. Listen: ✅/🔹/1️⃣ als Bullets, getrennt durch <br>. Abschnitte durch <br><br>. Kein <ul>/<li>. Schluss → <strong>.
-Keywords: 5–8 russische+spanische Suchbegriffe, Kleinbuchstaben.`;
+  btn.textContent = '⏳ Улучшаю…'; btn.disabled = true;
+  const prompt = `Улучши и отформатируй этот FAQ-ответ:\n\n${text}`;
   try {
-    const res  = await fetch('/api/admin/chat', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:sys,messages:[{role:'user',content:text}]}) });
+    const res  = await fetch('/api/admin/chat', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:AI_SYS,messages:[{role:'user',content:prompt}]}) });
     const data = await res.json();
     if (!res.ok) { showToast('API-ошибка: '+(data.error?.message||'').slice(0,80),'error'); return; }
     const raw = data.content?.[0]?.text?.trim() || '';
-    if (!raw) { showToast('Неожиданный ответ','error'); return; }
     let parsed;
     try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim()); }
-    catch { editor.innerHTML=raw; showToast('Отформатировано ✓ — ключевые слова не извлечены','success'); btn.textContent='✨ Форматировать ИИ'; btn.disabled=false; return; }
+    catch { editor.innerHTML=raw; showToast('Улучшено ✓','success'); btn.textContent='✨ Улучшить'; btn.disabled=false; return; }
     if (parsed.html) editor.innerHTML = parsed.html;
-    if (parsed.keywords?.length) { document.getElementById('mKeys').value=parsed.keywords.join(', '); showToast('Отформатировано ✓ — текст и ключевые слова предложены','success'); }
-    else showToast('Отформатировано ✓ — проверьте результат','success');
+    if (parsed.keywords?.length) { document.getElementById('mKeys').value=parsed.keywords.join(', '); showToast('Улучшено ✓ — ключевые слова обновлены','success'); }
+    else showToast('Улучшено ✓','success');
   } catch(err) { showToast('Сетевая ошибка: '+err.message,'error'); }
-  btn.textContent='✨ Форматировать ИИ'; btn.disabled=false;
+  btn.textContent='✨ Улучшить'; btn.disabled=false;
 }
 
 // ── Config form ───────────────────────────────────────────────────────────────
