@@ -4,8 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const API_KEY       = process.env.ANTHROPIC_API_KEY || '';
+const API_KEY        = process.env.ANTHROPIC_API_KEY || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const TG_TOKEN       = process.env.TELEGRAM_BOT_TOKEN || '';
+const BOT_URL        = 'https://nalog.goeloria.com';
 const PORT = 3000;
 
 const FAQ_PATH    = path.join(__dirname, 'faq.json');
@@ -366,6 +368,75 @@ const server = http.createServer(async (req, res) => {
     }
 
     json(res, 405, { error: 'Methode nicht erlaubt' });
+    return;
+  }
+
+  // ── Telegram webhook ──────────────────────────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/telegram/webhook') {
+    res.writeHead(200); res.end('ok');
+    if (!TG_TOKEN) return;
+    const body = await readJsonBody(req);
+    const msg = body.message;
+    if (!msg?.chat?.id) return;
+    const chatId = msg.chat.id;
+    const text   = (msg.text || '').trim();
+    if (!text) return;
+
+    const tg = (method, payload) => new Promise((resolve, reject) => {
+      const data = JSON.stringify(payload);
+      const r = https.request({ hostname:'api.telegram.org', path:`/bot${TG_TOKEN}/${method}`, method:'POST',
+        headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(data)} }, rs => {
+        let d=''; rs.on('data',c=>d+=c); rs.on('end',()=>resolve(JSON.parse(d)));
+      });
+      r.on('error', reject); r.write(data); r.end();
+    });
+
+    if (text === '/start') {
+      await tg('sendMessage', { chat_id: chatId,
+        text: '👋 Привет!\n\nЯ виртуальный помощник Александра Танцюры — налогового консультанта в Аликанте 🇪🇸\n\nМожете задать вопрос прямо здесь или открыть полную версию:',
+        reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
+      });
+      return;
+    }
+
+    // FAQ search
+    const faqList = (loadFaq().ru || []);
+    const lower = text.toLowerCase();
+    let best = null, bestScore = 0;
+    for (const item of faqList) {
+      const score = (item.keys || []).filter(k => lower.includes(k.toLowerCase())).length;
+      if (score > bestScore) { bestScore = score; best = item; }
+    }
+    if (best) {
+      const plain = best.answer
+        .replace(/<br\s*\/?>/gi, '\n').replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
+        .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1').replace(/<[^>]+>/g, '').trim();
+      await tg('sendMessage', { chat_id: chatId, text: plain, parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
+      });
+      return;
+    }
+
+    // AI fallback
+    const apiKey = getApiKey('client');
+    if (!apiKey) {
+      await tg('sendMessage', { chat_id: chatId, text: 'Бот временно недоступен. Обратитесь напрямую: @AlexanderTantsiura' });
+      return;
+    }
+    await tg('sendChatAction', { chat_id: chatId, action: 'typing' });
+    const sysPrompt = 'Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, кратко (макс 4 предложения). Испанские термины объясняй в скобках. Не придумывай цифры. Для личных вопросов — предлагай написать @AlexanderTantsiura. НЕ используй Markdown-символы (* # _ `).';
+    const aiBody = JSON.stringify({ model: getModel('client'), max_tokens: 600, system: sysPrompt, messages: [{ role:'user', content: text }] });
+    const aiRes  = await new Promise((resolve, reject) => {
+      const r = https.request({ hostname:'api.anthropic.com', path:'/v1/messages', method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','Content-Length':Buffer.byteLength(aiBody)} }, rs => {
+        let d=''; rs.on('data',c=>d+=c); rs.on('end',()=>resolve(JSON.parse(d)));
+      });
+      r.on('error', reject); r.write(aiBody); r.end();
+    });
+    const reply = aiRes.content?.[0]?.text || 'Не удалось получить ответ.';
+    await tg('sendMessage', { chat_id: chatId, text: reply,
+      reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
+    });
     return;
   }
 
