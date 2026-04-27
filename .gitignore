@@ -1,4 +1,7 @@
 key.txt
+key_format.txt
+start.ps1
+stats.json
 ecosystem.config.js
 node_modules/
 .env

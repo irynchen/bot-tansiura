@@ -50,9 +50,12 @@
   .header-name {
     font-family: 'Playfair Display', serif; font-size: 15px;
     font-weight: 600; color: var(--gold-light);
+    display: flex; align-items: baseline; gap: 8px;
   }
-  .header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .header-bio { font-size: 10px; color: var(--muted); margin-top: 2px; opacity: 0.7; }
+  .about-link { background:none; border:none; padding:0; cursor:pointer; font-size:10px; color:#4ade80; text-decoration:underline; font-family:inherit; letter-spacing:0; text-transform:none; opacity:0.85; }
+  .about-link:hover { opacity:1; }
+  .header-sub { font-size: 11px; color: #b0a898; margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .header-bio { font-size: 10px; color: #9a9080; margin-top: 2px; }
   .header-actions { display: flex; gap: 8px; align-items: center; }
   .lang-toggle {
     display: flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
@@ -159,6 +162,17 @@
   .cat-btn:hover { background: rgba(201,168,76,0.1); border-color: var(--gold); color: var(--gold-light); }
   .cat-btn.about { grid-column: span 2; justify-content: center; border-color: rgba(201,168,76,0.35); background: rgba(201,168,76,0.07); color: var(--gold-light); }
   .cat-btn.about:hover { background: rgba(201,168,76,0.15); }
+  .topics-toggle {
+    width: 100%; padding: 8px 14px; border-radius: 12px; margin-bottom: 0;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 12px;
+    cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    transition: all 0.2s;
+  }
+  .topics-toggle:hover, .topics-toggle.open { border-color: rgba(201,168,76,0.4); color: var(--gold-light); }
+  .cat-panel { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+  .cat-panel.open { max-height: 500px; }
+  .qr-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   .profile-card { display: flex; gap: 12px; align-items: flex-start; padding: 2px 0; }
   .profile-photo { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid rgba(201,168,76,0.4); }
   .profile-info { flex: 1; font-size: 12px; line-height: 1.7; }
@@ -257,14 +271,11 @@
   <div class="header">
     <div class="avatar" onclick="document.querySelector('.stats-panel').classList.toggle('open')" title="Статистика"><img src="/sascha.jpg" alt="АТ"></div>
     <div class="header-info">
-      <div class="header-name">Александр Танцюра</div>
+      <div class="header-name"><span class="header-name-text">Александр Танцюра</span><button class="about-link" onclick="showProfile()">ℹ️ Обо мне</button></div>
       <div class="header-sub">Бухгалтер · Аликанте 🇪🇸</div>
       <div class="header-bio">10 лет опыта · русскоязычный</div>
     </div>
-    <div class="lang-toggle">
-      <button class="lang-btn active" id="btnRU" onclick="setLang('ru')">RU</button>
-      <button class="lang-btn" id="btnES" onclick="setLang('es')">ES</button>
-    </div>
+    <div></div>
     <div class="status-dot"></div>
   </div>
 
@@ -361,8 +372,10 @@ const CONTACTS = {
   site: 'https://nalogspain.com/'
 };
 
-// ── Язык ─────────────────────────────────────────────────────────────────────
+// ── Язык / конфигурированные быстрые кнопки ───────────────────────────────────
 let currentLang = localStorage.getItem('lang') || 'ru';
+let configQuickReplies = [];
+let configCategories = [];
 
 const TEXTS = {
   ru: {
@@ -383,89 +396,78 @@ const TEXTS = {
   }
 };
 
-const CATEGORIES_RU = [
-  { icon: '💼', label: 'Autónomo', questions: [
-    ['Регистрация', 'Как стать автономо?'],
-    ['Закрыть autónomo', 'Как закрыть autónomo?'],
-    ['Tarifa plana', 'Что такое tarifa plana?'],
-    ['Cuota в месяц', 'Сколько платит autónomo в месяц?'],
-  ]},
-  { icon: '📋', label: 'Налоги', questions: [
-    ['IVA / НДС', 'Что такое IVA?'],
-    ['Какие налоги плачу', 'Какие налоги платит autónomo?'],
-    ['Резидент / нерезидент', 'Что такое резидент в Испании?'],
-  ]},
-  { icon: '📅', label: 'Сроки', questions: [
-    ['Modelo 303', 'Что такое modelo 303?'],
-    ['Modelo 130', 'Что такое modelo 130?'],
-    ['Годовая декларация', 'Когда подавать декларацию о доходах?'],
-  ]},
-  { icon: '📄', label: 'Документы', questions: [
-    ['NIE / NIF', 'Что такое NIE?'],
-    ['Certificado digital', 'Как получить certificado digital?'],
-    ['Residencia fiscal', 'Что такое резидент в Испании?'],
-  ]},
-  { icon: '💰', label: 'Расходы', questions: [
-    ['Что можно вычесть', 'Какие расходы можно вычесть как autónomo?'],
-    ['Выставить счёт', 'Как правильно выставить factura?'],
-  ]},
-  { icon: '📝', label: 'Формуляры', questions: [
-    ['Modelo 036 / 037', 'Что такое modelo 036 и 037?'],
-    ['Modelo 303', 'Что такое modelo 303?'],
-    ['Modelo 130', 'Что такое modelo 130?'],
-    ['Modelo 100 (Renta)', 'Когда подавать декларацию о доходах?'],
-  ]},
-];
+function buildCategories(faqList) {
+  // Build a lookup: category key → questions[]
+  const byKey = new Map();
+  for (const entry of faqList) {
+    const items = entry.menuItems?.length
+      ? entry.menuItems
+      : (entry.menuCategory && entry.menuLabel ? [{ category: entry.menuCategory, label: entry.menuLabel }] : []);
+    for (const { category, label } of items) {
+      if (!category || !label) continue;
+      if (!byKey.has(category)) byKey.set(category, []);
+      byKey.get(category).push({ label, id: entry.id });
+    }
+  }
 
-const CATEGORIES_ES = [
-  { icon: '💼', label: 'Autónomo', questions: [
-    ['Darme de alta', '¿Cómo darme de alta como autónomo?'],
-    ['Darme de baja', '¿Cómo darme de baja como autónomo?'],
-    ['Tarifa plana', '¿Qué es la tarifa plana?'],
-    ['Cuota mensual', '¿Cuánto paga un autónomo al mes?'],
-  ]},
-  { icon: '📋', label: 'Impuestos', questions: [
-    ['IVA', '¿Qué es el IVA y cómo funciona?'],
-    ['¿Qué impuestos pago?', '¿Qué impuestos paga un autónomo?'],
-    ['Residencia fiscal', '¿Qué es la residencia fiscal?'],
-  ]},
-  { icon: '📅', label: 'Plazos', questions: [
-    ['Modelo 303', '¿Cuándo presentar el modelo 303?'],
-    ['Modelo 130', '¿Qué es el modelo 130?'],
-    ['Declaración anual', '¿Cuándo presentar la declaración de la renta?'],
-  ]},
-  { icon: '📄', label: 'Documentos', questions: [
-    ['NIE / NIF', '¿Qué es el NIE y cómo obtenerlo?'],
-    ['Certificado digital', '¿Cómo obtener el certificado digital?'],
-  ]},
-  { icon: '💰', label: 'Gastos', questions: [
-    ['Gastos deducibles', '¿Qué gastos puede deducir un autónomo?'],
-    ['Emitir factura', '¿Cómo emitir una factura correctamente?'],
-  ]},
-  { icon: '📝', label: 'Modelos', questions: [
-    ['Modelo 036 / 037', '¿Qué es el modelo 036 y 037?'],
-    ['Modelo 303', '¿Cuándo presentar el modelo 303?'],
-    ['Modelo 130', '¿Qué es el modelo 130?'],
-    ['Modelo 100 (Renta)', '¿Cuándo presentar la declaración de la renta?'],
-  ]},
-];
+  // Use config order + icons; fall back to string-split for unknown categories
+  const seen = new Set();
+  const result = [];
+  for (const { icon, name } of configCategories) {
+    const key = `${icon} ${name}`.trim();
+    if (byKey.has(key)) {
+      result.push({ icon, label: name, questions: byKey.get(key) });
+      seen.add(key);
+    }
+  }
+  // Append any categories in FAQ data that aren't in config (legacy / unmapped)
+  for (const [key, questions] of byKey) {
+    if (seen.has(key)) continue;
+    const parts = key.split(' ');
+    result.push({ icon: parts[0], label: parts.slice(1).join(' ') || key, questions });
+  }
+  return result;
+}
 
 function setLang(lang) {
-  currentLang = lang;
-  localStorage.setItem('lang', lang);
-  document.getElementById('btnRU').classList.toggle('active', lang==='ru');
-  document.getElementById('btnES').classList.toggle('active', lang==='es');
-  document.getElementById('userInput').placeholder = TEXTS[lang].placeholder;
-  document.getElementById('disclaimer').textContent = TEXTS[lang].disclaimer;
-  document.getElementById('dateDivider').textContent = TEXTS[lang].today;
+  currentLang = 'ru';
+  document.getElementById('userInput').placeholder = TEXTS.ru.placeholder;
+  document.getElementById('disclaimer').textContent = TEXTS.ru.disclaimer;
+  document.getElementById('dateDivider').textContent = TEXTS.ru.today;
   showCategories();
 }
 
 function showCategories() {
   const qr = document.getElementById('quickReplies');
-  const cats = currentLang === 'ru' ? CATEGORIES_RU : CATEGORIES_ES;
+  qr.innerHTML = '';
+
+  // Sichtbare Schnellbuttons
+  const visibleQRs = configQuickReplies.filter(b => b.visible !== false);
+  if (visibleQRs.length) {
+    const bar = document.createElement('div');
+    bar.className = 'qr-bar';
+    visibleQRs.forEach(b => {
+      const btn = document.createElement('button');
+      btn.className = 'qr-btn';
+      btn.textContent = b.label;
+      btn.onclick = () => sendQuick(b.text);
+      bar.appendChild(btn);
+    });
+    qr.appendChild(bar);
+  }
+
+  // "Все темы" Toggle → ausklappbares Kategorienraster
+  const cats = buildCategories(currentLang === 'ru' ? FAQ_RU : FAQ_ES);
+  const toggle = document.createElement('button');
+  toggle.className = 'topics-toggle';
+  toggle.innerHTML = `<span>📋 Все темы</span><span class="toggle-arrow">▼</span>`;
+
+  const panel = document.createElement('div');
+  panel.className = 'cat-panel';
+
   const grid = document.createElement('div');
   grid.className = 'cat-grid';
+  grid.style.marginTop = '8px';
   cats.forEach((cat, i) => {
     const btn = document.createElement('button');
     btn.className = 'cat-btn';
@@ -473,13 +475,16 @@ function showCategories() {
     btn.onclick = () => showSubcategories(i);
     grid.appendChild(btn);
   });
-  const aboutBtn = document.createElement('button');
-  aboutBtn.className = 'cat-btn about';
-  aboutBtn.innerHTML = `<span>👤</span><span>${currentLang === 'ru' ? 'Об Александре' : 'Sobre Aleksandr'}</span>`;
-  aboutBtn.onclick = showProfile;
-  grid.appendChild(aboutBtn);
-  qr.innerHTML = '';
-  qr.appendChild(grid);
+  panel.appendChild(grid);
+
+  toggle.onclick = () => {
+    const isOpen = panel.classList.toggle('open');
+    toggle.classList.toggle('open', isOpen);
+    toggle.querySelector('.toggle-arrow').textContent = isOpen ? '▲' : '▼';
+  };
+
+  qr.appendChild(toggle);
+  qr.appendChild(panel);
 }
 
 function showProfile() {
@@ -490,20 +495,24 @@ function showProfile() {
   back.className = 'back-btn';
   back.textContent = backLabel;
   back.onclick = showCategories;
+  const p = configProfile;
+  const waHref  = p.whatsapp ? `https://wa.me/${p.whatsapp}` : '#';
+  const tgHref  = p.telegram ? `https://t.me/${p.telegram}` : '#';
+  const siteLabel = p.site ? p.site.replace(/^https?:\/\//, '').replace(/\/$/, '') : '';
   const card = document.createElement('div');
   card.className = 'profile-card';
   card.innerHTML = `
-    <img class="profile-photo" src="/sascha.jpg" alt="Александр Танцюра">
+    <img class="profile-photo" src="/sascha.jpg" alt="${p.name}">
     <div class="profile-info">
-      <div class="profile-name">Александр Танцюра</div>
-      <div style="color:var(--muted)">📍 Аликанте, Испания</div>
-      <div style="color:var(--muted)">⭐ 10 лет опыта</div>
-      <div style="color:var(--muted)">🗣 ${isRu ? 'Русский, украинский, испанский' : 'Ruso, ucraniano, español'}</div>
-      <div style="color:var(--muted)">📋 ${isRu ? 'Налоги и бухгалтерия в Испании' : 'Fiscalidad y contabilidad en España'}</div>
+      <div class="profile-name">${p.name}</div>
+      ${p.location   ? `<div style="color:var(--muted)">📍 ${p.location}</div>` : ''}
+      ${p.experience ? `<div style="color:var(--muted)">⭐ ${p.experience}</div>` : ''}
+      ${p.languages ? `<div style="color:var(--muted)">🗣 ${p.languages}</div>` : ''}
+      ${p.specialty ? `<div style="color:var(--muted)">📋 ${p.specialty}</div>` : ''}
       <div class="profile-contacts">
-        <a class="contact-btn whatsapp" href="https://wa.me/34623392451" target="_blank" style="font-size:11px;padding:5px 10px">WhatsApp</a>
-        <a class="contact-btn telegram" href="https://t.me/AlexanderTantsiura" target="_blank" style="font-size:11px;padding:5px 10px">Telegram</a>
-        <a class="contact-btn site" href="https://nalogspain.com/" target="_blank" style="font-size:11px;padding:5px 10px">nalogspain.com</a>
+        ${p.whatsapp ? `<a class="contact-btn whatsapp" href="${waHref}" target="_blank" style="font-size:11px;padding:5px 10px">WhatsApp</a>` : ''}
+        ${p.telegram ? `<a class="contact-btn telegram" href="${tgHref}" target="_blank" style="font-size:11px;padding:5px 10px">Telegram</a>` : ''}
+        ${p.site     ? `<a class="contact-btn site" href="${p.site}" target="_blank" style="font-size:11px;padding:5px 10px">${siteLabel}</a>` : ''}
       </div>
     </div>`;
   qr.innerHTML = '';
@@ -513,7 +522,7 @@ function showProfile() {
 
 function showSubcategories(catIndex) {
   const qr = document.getElementById('quickReplies');
-  const cats = currentLang === 'ru' ? CATEGORIES_RU : CATEGORIES_ES;
+  const cats = buildCategories(currentLang === 'ru' ? FAQ_RU : FAQ_ES);
   const cat = cats[catIndex];
   const backLabel = currentLang === 'ru' ? '← Все темы' : '← Todos los temas';
   const back = document.createElement('button');
@@ -522,11 +531,11 @@ function showSubcategories(catIndex) {
   back.onclick = showCategories;
   const list = document.createElement('div');
   list.className = 'sub-list';
-  cat.questions.forEach(([label, q]) => {
+  cat.questions.forEach(({ label, id }) => {
     const btn = document.createElement('button');
     btn.className = 'qr-btn';
     btn.textContent = label;
-    btn.onclick = () => sendQuick(q);
+    btn.onclick = () => sendFaqById(id);
     list.appendChild(btn);
   });
   qr.innerHTML = '';
@@ -534,244 +543,32 @@ function showSubcategories(catIndex) {
   qr.appendChild(list);
 }
 
-// ── FAQ ──────────────────────────────────────────────────────────────────────
-const FAQ_RU = [
-  {
-    keys: ['стать autónomo','стать автоном','зарегистрироваться','открыть ип','самозанят','как стать','alta autónomo','автономо зарегист'],
-    topic: 'Autónomo — регистрация',
-    answer: `Чтобы стать <span class="term">autónomo</span> в Испании, нужно 3 шага:<br><br>
-1️⃣ Получить <span class="term">NIE</span> — если ещё нет<br>
-2️⃣ Встать на учёт в налоговой через <span class="term">modelo 036</span> или <span class="term">037</span><br>
-3️⃣ Зарегистрироваться в <span class="term">Seguridad Social</span><br><br>
-Ежемесячный взнос — от <span class="term">~230 €</span> в зависимости от дохода. Новые autónomos получают льготу <span class="term">tarifa plana</span> — всего <span class="term">80 €/мес</span> в первый год. 💡 Для разбора вашей конкретной ситуации — лучше обсудить с Александром.`
-  },
-  {
-    keys: ['iva','ндс','что такое iva','налог на добавленную'],
-    topic: 'IVA / НДС',
-    answer: `<span class="term">IVA</span> — испанский аналог НДС.<br><br>
-Основные ставки:<br>
-🔹 <span class="term">21%</span> — стандартная (большинство товаров и услуг)<br>
-🔹 <span class="term">10%</span> — пониженная (еда в ресторанах, транспорт)<br>
-🔹 <span class="term">4%</span> — льготная (базовые продукты, книги, лекарства)<br><br>
-Как autónomo вы выставляете IVA клиентам и отчитываетесь раз в квартал через <span class="term">modelo 303</span>.`
-  },
-  {
-    keys: ['modelo 303','модело 303','квартальный отчёт','квартальная декларация iva'],
-    topic: 'Modelo 303',
-    answer: `<span class="term">Modelo 303</span> — квартальная декларация по IVA. Сдаётся 4 раза в год:<br><br>
-📅 1 квартал (янв–март) → до <span class="term">20 апреля</span><br>
-📅 2 квартал (апр–июнь) → до <span class="term">20 июля</span><br>
-📅 3 квартал (июль–сент) → до <span class="term">20 октября</span><br>
-📅 4 квартал (окт–дек) → до <span class="term">30 января</span> следующего года<br><br>
-Разница между выставленным и уплаченным IVA идёт в <span class="term">Hacienda</span> или засчитывается.`
-  },
-  {
-    keys: ['декларация о доходах','renta','irpf','подоходный','modelo 100','ежегодная декларация','когда подавать декларацию'],
-    topic: 'Декларация / Renta',
-    answer: `<span class="term">Declaración de la Renta</span> — ежегодная декларация по подоходному налогу (<span class="term">IRPF</span>).<br><br>
-📅 Подаётся раз в год: обычно <span class="term">апрель–июнь</span> за предыдущий год.<br><br>
-Кто обязан:<br>
-✅ Все <span class="term">autónomos</span><br>
-✅ Наёмные работники с доходом от <span class="term">22 000 €/год</span> (один работодатель)<br>
-✅ С доходом от <span class="term">15 000 €</span> при нескольких работодателях<br><br>
-Ставки IRPF — прогрессивные, от 19% до 47%.`
-  },
-  {
-    keys: ['налоги автономо','налоги autónomo','сколько платит автономо','сколько платит autónomo','какие налоги','что платит автономо','сколько платит','cuota','платит в месяц'],
-    topic: 'Налоги autónomo',
-    answer: `Как <span class="term">autónomo</span> вы платите три вещи:<br><br>
-1️⃣ <span class="term">IVA</span> — каждый квартал (modelo 303)<br>
-2️⃣ <span class="term">IRPF</span> — авансы каждый квартал (modelo 130) + итог раз в год (modelo 100)<br>
-3️⃣ <span class="term">Cuota de autónomos</span> — взнос в соцстрах каждый месяц (~230–500 €)<br><br>
-💡 Многие расходы можно вычесть: аренда, телефон, транспорт, ПО и др.`
-  },
-  {
-    keys: ['nie','nif','cif','идентификационный номер','что такое nie','как получить nie'],
-    topic: 'NIE / NIF / CIF',
-    answer: `🪪 <span class="term">NIE</span> — номер иностранца. Нужен для работы, счёта в банке, регистрации бизнеса. Оформляется в полиции или консульстве.<br><br>
-🪪 <span class="term">NIF</span> — налоговый номер. Для иностранцев это и есть NIE.<br><br>
-🏢 <span class="term">CIF</span> — для юридических лиц (компаний). Сейчас официально называется NIF de empresa.<br><br>
-NIE — это первый шаг перед любой деятельностью в Испании.`
-  },
-  {
-    keys: ['certificado digital','цифровой сертификат','электронная подпись','как получить сертификат','clave pin'],
-    topic: 'Certificado digital',
-    answer: `<span class="term">Certificado digital</span> — электронная подпись для общения с госорганами онлайн.<br><br>
-Нужен для:<br>
-✅ Подачи деклараций в <span class="term">Hacienda</span><br>
-✅ Регистрации в <span class="term">Seguridad Social</span><br>
-✅ Любых онлайн-запросов к госструктурам<br><br>
-Как получить: сайт <span class="term">fnmt.es</span> → запрос → личное подтверждение в налоговой → скачать.<br>
-Альтернатива — <span class="term">Cl@ve PIN</span>: проще, подходит для большинства операций.`
-  },
-  {
-    keys: ['tarifa plana','тарифа плана','льготная ставка','скидка для новых автономо'],
-    topic: 'Tarifa plana',
-    answer: `<span class="term">Tarifa plana</span> — льготный взнос для новых autónomos.<br><br>
-С 2023 года:<br>
-🔹 Первые <span class="term">12 месяцев</span> — фиксированный взнос <span class="term">80 €/месяц</span> вместо ~300 €<br>
-🔹 Далее взнос рассчитывается по реальному доходу<br><br>
-Условия:<br>
-✅ Первая регистрация (или не было регистрации последние 2 года)<br>
-✅ Нет задолженностей перед налоговой<br><br>
-💡 Экономия ~2 600 € в первый год — обязательно воспользуйтесь!`
-  },
-  {
-    keys: ['modelo 130','модело 130','авансовый платёж irpf','квартальный irpf'],
-    topic: 'Modelo 130',
-    answer: `<span class="term">Modelo 130</span> — ежеквартальный авансовый платёж по <span class="term">IRPF</span>.<br><br>
-Те же сроки что и modelo 303: до <span class="term">20 апреля</span>, <span class="term">20 июля</span>, <span class="term">20 октября</span> и <span class="term">30 января</span>.<br><br>
-Сумма = 20% от чистого дохода за квартал минус уже уплаченные авансы.<br>
-💡 Эти платежи зачитываются в итоговой годовой декларации (modelo 100).`
-  },
-  {
-    keys: ['расходы','вычесть','что вычитается','расходы автономо','gastos deducibles'],
-    topic: 'Gastos deducibles',
-    answer: `Как <span class="term">autónomo</span> вы можете вычесть расходы, связанные с деятельностью:<br><br>
-✅ Аренда офиса или часть аренды жилья<br>
-✅ Телефон и интернет (пропорционально работе)<br>
-✅ Транспорт и топливо<br>
-✅ Программное обеспечение и подписки<br>
-✅ Материалы и оборудование<br>
-✅ Услуги бухгалтера<br><br>
-💡 Все расходы должны иметь <span class="term">factura</span> и быть обоснованы.`
-  },
-  {
-    keys: ['factura','счёт','выставить счёт','счёт-фактура','как выставить счёт'],
-    topic: 'Factura',
-    answer: `<span class="term">Factura</span> — обязательный документ для каждой оплаты как autónomo.<br><br>
-Что должно быть:<br>
-📋 Номер и дата<br>
-📋 Ваши данные (имя, NIF, адрес) + данные клиента<br>
-📋 Описание услуги<br>
-📋 Сумма без IVA + IVA (21%) + итого<br>
-📋 Удержание IRPF 15% — если клиент юрлицо в Испании<br><br>
-💡 Храните все facturas минимум 4 года.`
-  },
-  {
-    keys: ['закрыть autónomo','закрыть автономо','закрыть','baja','снятие с учёта','закрыть ип','прекратить деятельность'],
-    topic: 'Baja autónomo',
-    answer: `Чтобы закрыть <span class="term">autónomo</span>:<br><br>
-1️⃣ Подать <span class="term">modelo 036/037</span> в Hacienda — снятие с налогового учёта<br>
-2️⃣ Подать заявление на <span class="term">baja en Seguridad Social</span><br><br>
-⚠️ Сначала налоговая, потом соцстрах.<br>
-Взнос за текущий месяц платится пропорционально дням.<br>
-💡 Не забудьте финальные декларации (303, 130) за последний квартал.`
-  },
-  {
-    keys: ['резидент','резиденция','налоговый резидент','residencia fiscal','где платить налоги','183 дня'],
-    topic: 'Residencia fiscal',
-    answer: `<span class="term">Налоговый резидент</span> Испании — тот, кто живёт в Испании более <span class="term">183 дней в году</span>.<br><br>
-🔹 Резиденты платят налоги в Испании со <strong>всех мировых доходов</strong><br>
-🔹 Нерезиденты — только с доходов, полученных в Испании<br><br>
-Документ — <span class="term">certificado de residencia fiscal</span>, выдаётся в Hacienda.<br>
-💡 Если работаете удалённо на зарубежную компанию, живя в Испании — скорее всего вы резидент.`
-  },
-  {
-    keys: ['modelo 036','modelo 037','модело 036','регистрация в налоговой','036 037'],
-    topic: 'Modelo 036 / 037',
-    answer: `<span class="term">Modelo 036</span> и <span class="term">037</span> — формы регистрации в налоговой (<span class="term">Hacienda</span>).<br><br>
-🔹 <span class="term">037</span> — упрощённая, подходит большинству autónomos<br>
-🔹 <span class="term">036</span> — полная, для более сложных ситуаций<br><br>
-Используются при:<br>
-✅ Регистрации как autónomo<br>
-✅ Изменении вида деятельности<br>
-✅ Снятии с учёта<br><br>
-Подаются лично, онлайн (с certificado digital) или через бухгалтера.`
-  },
-];
+async function sendFaqById(id) {
+  if (isLoading) return;
+  const faqList = currentLang === 'ru' ? FAQ_RU : FAQ_ES;
+  const entry = faqList.find(e => e.id === id);
+  if (!entry) return;
+  isLoading = true;
+  document.getElementById('sendBtn').disabled = true;
+  const label = entry.menuLabel || entry.topic;
+  appendMessage(label, 'user');
+  saveHistory('user', label);
+  showTyping();
+  await new Promise(r => setTimeout(r, 600));
+  hideTyping();
+  appendMessage(entry.answer, 'bot', { cls: 'badge-faq', label: '⚡ FAQ' });
+  trackQuestion(entry.topic, 'faq');
+  saveHistory('bot', entry.answer);
+  isLoading = false;
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('userInput').focus();
+  showCategories();
+}
 
-const FAQ_ES = [
-  {
-    keys: ['autónomo','alta autónomo','registrarse','autónomo españa'],
-    topic: 'Alta autónomo',
-    answer: `Para darte de alta como <span class="term">autónomo</span> en España necesitas 3 pasos:<br><br>
-1️⃣ Obtener el <span class="term">NIE</span> si aún no lo tienes<br>
-2️⃣ Registrarte en <span class="term">Hacienda</span> con el modelo 036 o 037<br>
-3️⃣ Darte de alta en la <span class="term">Seguridad Social</span> (RETA)<br><br>
-La cuota mensual va desde <span class="term">~230 €</span> según tus ingresos. Los nuevos autónomos pueden acogerse a la <span class="term">tarifa plana de 80 €/mes</span> el primer año. 💡 Para tu caso concreto, mejor hablarlo con Aleksandr.`
-  },
-  {
-    keys: ['iva','impuesto sobre el valor','qué es el iva'],
-    topic: 'IVA',
-    answer: `El <span class="term">IVA</span> es el Impuesto sobre el Valor Añadido.<br><br>
-Tipos:<br>
-🔹 <span class="term">21%</span> — general (mayoría de bienes y servicios)<br>
-🔹 <span class="term">10%</span> — reducido (restaurantes, transporte)<br>
-🔹 <span class="term">4%</span> — superreducido (alimentos básicos, libros, medicamentos)<br><br>
-Como autónomo repercutes IVA a tus clientes y lo declaras cada trimestre con el <span class="term">modelo 303</span>.`
-  },
-  {
-    keys: ['modelo 303','declaración iva trimestral'],
-    topic: 'Modelo 303',
-    answer: `El <span class="term">modelo 303</span> es la declaración trimestral del IVA:<br><br>
-📅 1T (ene–mar) → hasta el <span class="term">20 de abril</span><br>
-📅 2T (abr–jun) → hasta el <span class="term">20 de julio</span><br>
-📅 3T (jul–sep) → hasta el <span class="term">20 de octubre</span><br>
-📅 4T (oct–dic) → hasta el <span class="term">30 de enero</span> del año siguiente`
-  },
-  {
-    keys: ['modelo 130','pago fraccionado irpf','irpf trimestral'],
-    topic: 'Modelo 130',
-    answer: `El <span class="term">modelo 130</span> es el pago fraccionado trimestral del <span class="term">IRPF</span>.<br><br>
-Mismos plazos que el modelo 303: hasta el 20 de abril, 20 de julio, 20 de octubre y 30 de enero.<br><br>
-Se paga el 20% del rendimiento neto trimestral menos pagos anteriores. Se descuenta de la declaración anual de la renta.`
-  },
-  {
-    keys: ['gastos deducibles','qué puedo deducir','gastos autónomo'],
-    topic: 'Gastos deducibles',
-    answer: `Gastos deducibles habituales de un <span class="term">autónomo</span>:<br><br>
-✅ Alquiler de local o parte proporcional del hogar<br>
-✅ Teléfono e internet (proporcional al uso profesional)<br>
-✅ Transporte y combustible<br>
-✅ Software y suscripciones<br>
-✅ Material y equipamiento<br>
-✅ Gestoría / asesoría<br><br>
-💡 Todos los gastos deben estar justificados con <span class="term">factura</span>.`
-  },
-  {
-    keys: ['factura','emitir factura','cómo facturar'],
-    topic: 'Factura',
-    answer: `Toda <span class="term">factura</span> debe incluir:<br><br>
-📋 Número y fecha<br>
-📋 Tus datos (nombre, NIF, dirección) + datos del cliente<br>
-📋 Descripción del servicio<br>
-📋 Base imponible + IVA (21% general) + total<br>
-📋 Retención IRPF 15% si el cliente es empresa española<br><br>
-💡 Guarda todas las facturas mínimo 4 años.`
-  },
-  {
-    keys: ['darme de baja','baja autónomo','cerrar autónomo'],
-    topic: 'Baja autónomo',
-    answer: `Para darte de baja como <span class="term">autónomo</span>:<br><br>
-1️⃣ Presentar <span class="term">modelo 036/037</span> en Hacienda<br>
-2️⃣ Solicitar la <span class="term">baja en la Seguridad Social</span><br><br>
-⚠️ Primero Hacienda, luego Seguridad Social.<br>
-La cuota del mes se paga proporcionalmente a los días.<br>
-💡 No olvides las declaraciones finales (303, 130) del último trimestre.`
-  },
-  {
-    keys: ['residencia fiscal','residente fiscal','183 días','donde pagar impuestos'],
-    topic: 'Residencia fiscal',
-    answer: `Eres <span class="term">residente fiscal</span> en España si vives aquí más de <span class="term">183 días al año</span>.<br><br>
-🔹 Residentes tributan en España por <strong>todos sus ingresos mundiales</strong><br>
-🔹 No residentes solo por ingresos obtenidos en España<br><br>
-El documento es el <span class="term">certificado de residencia fiscal</span>, emitido por Hacienda.<br>
-💡 Si trabajas en remoto para empresa extranjera viviendo en España, probablemente eres residente.`
-  },
-  {
-    keys: ['modelo 036','modelo 037','alta hacienda','registro hacienda'],
-    topic: 'Modelo 036 / 037',
-    answer: `<span class="term">Modelo 036</span> y <span class="term">037</span> son los formularios de alta en <span class="term">Hacienda</span>.<br><br>
-🔹 <span class="term">037</span> — simplificado, válido para la mayoría de autónomos<br>
-🔹 <span class="term">036</span> — completo, para situaciones más complejas<br><br>
-Se usan para:<br>
-✅ Darse de alta como autónomo<br>
-✅ Cambiar la actividad<br>
-✅ Darse de baja<br><br>
-Se presentan presencialmente, online (con certificado digital) o a través de gestor.`
-  },
-];
+// ── FAQ (wird vom Server geladen) ────────────────────────────────────────────
+let FAQ_RU = [];
+let FAQ_ES = [];
+
 
 // ── Статистика ───────────────────────────────────────────────────────────────
 let stats = JSON.parse(localStorage.getItem('botStats') || '{"total":0,"faq":0,"ai":0,"topics":{}}');
@@ -784,6 +581,8 @@ function trackQuestion(topic, type) {
   if (topic) stats.topics[topic] = (stats.topics[topic] || 0) + 1;
   saveStats();
   updateStatsUI();
+  // Send to server (fire-and-forget)
+  fetch('/api/stats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, topic }) }).catch(() => {});
 }
 
 function updateStatsUI() {
@@ -945,7 +744,7 @@ async function sendMessage() {
 
 // ── Копировать email ─────────────────────────────────────────────────────────
 function copyEmail() {
-  navigator.clipboard.writeText('awanderer66@gmail.com').then(() => {
+  navigator.clipboard.writeText(window._contactEmail || 'awanderer66@gmail.com').then(() => {
     const btn = document.getElementById('emailBtnText');
     btn.textContent = '✓ Скопировано!';
     setTimeout(() => btn.textContent = 'Email', 2000);
@@ -954,8 +753,48 @@ function copyEmail() {
 
 // ── Инициализация ─────────────────────────────────────────────────────────────
 document.getElementById('welcomeTime').textContent = getTime();
-setLang(currentLang);
 updateStatsUI();
+
+let configProfile = {};
+
+function applyConfig(cfg) {
+  if (!cfg) return;
+  if (cfg.botName)    document.querySelector('.header-name-text').textContent = cfg.botName;
+  if (cfg.botSubtitle) document.querySelector('.header-sub').textContent = cfg.botSubtitle;
+  if (cfg.botBio)     document.querySelector('.header-bio').textContent = cfg.botBio;
+  if (cfg.welcomeRU)  TEXTS.ru.welcome = cfg.welcomeRU;
+  if (cfg.welcomeES)  TEXTS.es.welcome = cfg.welcomeES;
+  if (cfg.contacts) {
+    const c = cfg.contacts;
+    if (c.whatsapp) document.querySelector('.contact-btn.whatsapp').href = `https://wa.me/${c.whatsapp}`;
+    if (c.telegram) document.querySelector('.contact-btn.telegram').href = `https://t.me/${c.telegram}`;
+    if (c.site)     document.querySelector('.contact-btn.site').href = c.site;
+    if (c.email)    window._contactEmail = c.email;
+  }
+  configProfile = {
+    name:        cfg.botName            || 'Александр Танцюра',
+    location:    cfg.profileLocation    || 'Аликанте, Испания',
+    experience:  cfg.profileExperience  || '10 лет опыта',
+    languages:   cfg.profileLanguages   || 'Русский, украинский, испанский',
+    specialty:   cfg.profileSpecialty   || 'Налоги и бухгалтерия в Испании',
+    whatsapp:    cfg.contacts?.whatsapp || '',
+    telegram:    cfg.contacts?.telegram || '',
+    site:        cfg.contacts?.site     || '',
+  };
+  if (cfg.quickReplies?.length) configQuickReplies = cfg.quickReplies;
+  if (cfg.categories?.length)  configCategories  = cfg.categories;
+  document.getElementById('welcomeMsg').innerHTML = TEXTS[currentLang].welcome;
+}
+
+Promise.all([
+  fetch('/api/config').then(r => r.json()).catch(() => ({})),
+  fetch('/api/faq').then(r => r.json()).catch(() => ({ ru: [], es: [] }))
+]).then(([cfg, faqData]) => {
+  applyConfig(cfg);
+  FAQ_RU = faqData.ru || [];
+  FAQ_ES = faqData.es || [];
+  setLang(currentLang);
+});
 </script>
 </body>
 </html>

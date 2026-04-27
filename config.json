@@ -1,0 +1,99 @@
+{
+  "botName": "Александр Танцюра",
+  "botSubtitle": "Бухгалтер · Аликанте 🇪🇸",
+  "botBio": "10 лет опыта · русскоязычный",
+  "welcomeRU": "Привет! Я <strong>Александр Танцюра</strong>, бухгалтер в Аликанте. Здесь мой помощник ответит на самые частые вопросы — быстро и бесплатно. Для личной консультации — пишите мне напрямую.",
+  "welcomeES": "¡Hola! 👋 Soy el asistente virtual de <strong>Aleksandr Tantsiura</strong>, asesor fiscal en Alicante.<br><br>Respondo preguntas frecuentes sobre impuestos en España 🇪🇸<br>Para consulta personal — usa los botones de arriba.",
+  "quickReplies": [
+    {
+      "label": "💼 Autónomo",
+      "text": "Как стать автономо?",
+      "visible": true
+    },
+    {
+      "label": "🧾 IVA / НДС",
+      "text": "Что такое IVA?",
+      "visible": false
+    },
+    {
+      "label": "📅 Декларация",
+      "text": "Когда подавать декларацию о доходах?",
+      "visible": true
+    },
+    {
+      "label": "📋 Modelo 303",
+      "text": "Что такое modelo 303?",
+      "visible": false
+    },
+    {
+      "label": "💰 Налоги",
+      "text": "Какие налоги платит autónomo?",
+      "visible": true
+    },
+    {
+      "label": "🪪 NIE / NIF",
+      "text": "Что такое NIE?",
+      "visible": false
+    },
+    {
+      "label": "🔐 Сертификат",
+      "text": "Как получить certificado digital?",
+      "visible": false
+    },
+    {
+      "label": "⭐ Tarifa plana",
+      "text": "Что такое tarifa plana?",
+      "visible": false
+    }
+  ],
+  "contacts": {
+    "whatsapp": "34623392451",
+    "telegram": "AlexanderTantsiura",
+    "email": "awanderer66@gmail.com",
+    "site": "https://nalogspain.com/"
+  },
+  "categories": [
+    {
+      "icon": "💼",
+      "name": "Autónomo"
+    },
+    {
+      "icon": "📋",
+      "name": "Налоги"
+    },
+    {
+      "icon": "📅",
+      "name": "Сроки"
+    },
+    {
+      "icon": "📄",
+      "name": "Документы"
+    },
+    {
+      "icon": "💰",
+      "name": "Расходы"
+    },
+    {
+      "icon": "📝",
+      "name": "Формуляры"
+    },
+    {
+      "icon": "🏦",
+      "name": "Allgemein"
+    },
+    {
+      "icon": "🧳",
+      "name": "Новоприбывшим"
+    }
+  ],
+  "apiKeyClientMasked": null,
+  "apiKeyAdminMasked": null,
+  "profileLocation": "Аликанте, Испания",
+  "profileExperience": "10 лет опыта",
+  "profileLanguages": "Русский, украинский, испанский",
+  "profileLanguagesES": "",
+  "profileSpecialty": "Налоги и бухгалтерия в Испании",
+  "profileSpecialtyES": "",
+  "apiKeyClient": "",
+  "apiKeyAdmin": ""
+}

@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Админ-портал · Чат-бот Александра Танцюры</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --gold: #C9A84C; --gold-light: #E8C97A; --gold-dim: rgba(201,168,76,0.15);
+  --bg: #f4f4f5; --surface: #fff;
+  --border: #e4e4e7; --text: #18181b; --muted: #71717a;
+  --sidebar-bg: #18181b; --sidebar-border: #2d2d2f;
+  --red: #ef4444; --red-bg: #fee2e2; --red-border: #fecaca;
+  --blue: #3b82f6; --blue-bg: #eff6ff; --blue-border: #bfdbfe;
+  --green: #22c55e; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+  --purple: #8b5cf6; --purple-bg: #f5f3ff; --purple-border: #ddd6fe;
+  --amber: #f59e0b; --amber-bg: #fffbeb; --amber-border: #fde68a;
+  --sidebar-w: 220px;
+}
+body { font-family: system-ui,-apple-system,sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── Login ── */
+#loginScreen { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+.login-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:44px 40px; width:100%; max-width:380px; box-shadow:0 8px 40px rgba(0,0,0,.08); }
+.login-logo { width:52px; height:52px; border-radius:14px; background:linear-gradient(135deg,var(--gold),#8B6914); display:flex; align-items:center; justify-content:center; font-size:24px; margin-bottom:20px; }
+.login-card h1 { font-size:21px; font-weight:700; margin-bottom:4px; }
+.login-card p  { color:var(--muted); font-size:14px; margin-bottom:28px; line-height:1.5; }
+.field { margin-bottom:16px; }
+.field label { display:block; font-size:13px; font-weight:500; margin-bottom:6px; }
+.field input { width:100%; padding:11px 14px; border:1px solid var(--border); border-radius:10px; font-size:14px; outline:none; transition:border-color .15s; }
+.field input:focus { border-color:var(--gold); }
+.btn-primary { width:100%; padding:12px; background:linear-gradient(135deg,var(--gold),#a8881e); color:#1a1a1a; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; transition:opacity .15s; }
+.btn-primary:hover { opacity:.9; }
+.error-msg { color:var(--red); font-size:13px; margin-top:12px; min-height:18px; }
+
+/* ── App shell ── */
+#mainScreen { display:none; min-height:100vh; }
+.app-layout { display:flex; min-height:100vh; }
+
+/* ── Sidebar ── */
+.sidebar { width:var(--sidebar-w); background:var(--sidebar-bg); color:#e4e4e7; display:flex; flex-direction:column; position:fixed; top:0; left:0; height:100vh; z-index:20; border-right:1px solid var(--sidebar-border); }
+.sidebar-brand { padding:20px 18px 16px; border-bottom:1px solid var(--sidebar-border); }
+.sidebar-logo  { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--gold),#8B6914); display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:10px; }
+.sidebar-title { font-size:13px; font-weight:600; color:#f4f4f5; line-height:1.4; }
+.sidebar-sub   { font-size:11px; color:#71717a; margin-top:2px; }
+.sidebar-nav   { flex:1; padding:12px 10px; display:flex; flex-direction:column; gap:2px; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:500; color:#a1a1aa; border:none; background:transparent; width:100%; text-align:left; transition:all .15s; }
+.nav-item:hover  { background:rgba(255,255,255,.06); color:#f4f4f5; }
+.nav-item.active { background:var(--gold-dim); color:var(--gold-light); }
+.nav-icon { font-size:16px; width:20px; text-align:center; flex-shrink:0; }
+.nav-badge { margin-left:auto; background:rgba(201,168,76,.25); color:var(--gold-light); font-size:10px; font-weight:600; padding:1px 6px; border-radius:10px; }
+.sidebar-footer { padding:12px 10px; border-top:1px solid var(--sidebar-border); }
+.btn-logout { display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:8px; cursor:pointer; font-size:13px; color:#71717a; border:none; background:transparent; transition:all .15s; text-align:left; }
+.btn-logout:hover { background:rgba(239,68,68,.1); color:#f87171; }
+
+/* ── Main ── */
+.main-content { margin-left:var(--sidebar-w); flex:1; display:flex; flex-direction:column; }
+.page-header  { background:var(--surface); border-bottom:1px solid var(--border); padding:0 28px; height:60px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:10; }
+.page-header h1 { font-size:17px; font-weight:600; flex:1; }
+.header-muted   { font-size:13px; color:var(--muted); }
+.page-body { padding:28px; flex:1; }
+.page { display:none; }
+.page.active { display:block; }
+
+/* ── FAQ toolbar ── */
+.toolbar { display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+.search-wrap { flex:1; min-width:200px; position:relative; }
+.search-wrap svg { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+.search-input { width:100%; padding:8px 12px 8px 34px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; transition:border-color .15s; background:var(--surface); }
+.search-input:focus { border-color:var(--gold); }
+.btn-add { display:flex; align-items:center; gap:6px; padding:9px 16px; background:var(--text); color:white; border:none; border-radius:8px; font-size:14px; font-weight:500; cursor:pointer; transition:opacity .15s; flex-shrink:0; }
+.btn-add:hover { opacity:.85; }
+
+/* ── Table ── */
+.table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+table { width:100%; border-collapse:collapse; }
+thead { background:var(--bg); }
+th { padding:12px 16px; text-align:left; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); }
+td { padding:13px 16px; font-size:14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:#fafafa; }
+.keys-wrap { display:flex; flex-wrap:wrap; gap:4px; }
+.key-chip  { padding:2px 8px; background:var(--bg); border:1px solid var(--border); border-radius:20px; font-size:11px; color:var(--muted); }
+.btn-edit   { padding:5px 12px; background:var(--blue-bg); color:var(--blue); border:1px solid var(--blue-border); border-radius:6px; font-size:12px; font-weight:500; cursor:pointer; margin-right:6px; transition:all .15s; }
+.btn-edit:hover { background:#dbeafe; }
+.btn-delete { padding:5px 12px; background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); border-radius:6px; font-size:12px; font-weight:500; cursor:pointer; transition:all .15s; }
+.btn-delete:hover { background:#fecaca; }
+.empty-state { padding:48px; text-align:center; color:var(--muted); font-size:14px; }
+mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
+.menu-chip { display:inline-block; padding:2px 7px; background:var(--gold-dim); border:1px solid rgba(201,168,76,.3); border-radius:10px; font-size:11px; color:#92710a; margin:1px; }
+.cat-sep { color:var(--muted); font-size:11px; }
+.cat-group-row { cursor:pointer; user-select:none; }
+.cat-group-row td { padding:11px 16px; background:var(--bg); border-bottom:1px solid var(--border); }
+.cat-group-row:hover td { background:rgba(201,168,76,.05); }
+.g-arrow { display:inline-block; font-size:10px; width:14px; transition:transform .2s; color:var(--muted); margin-right:4px; }
+.cat-group-row.collapsed .g-arrow { transform:rotate(-90deg); }
+.g-icon { font-size:15px; margin-right:6px; }
+.g-name { font-size:14px; font-weight:700; color:var(--text); }
+.g-count { font-size:12px; color:var(--muted); font-weight:400; margin-left:8px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1px 7px; }
+.group-hidden { display:none; }
+
+/* ── Modal ── */
+.modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:flex-start; justify-content:center; padding:32px 20px; overflow-y:auto; }
+.modal-backdrop.open { display:flex; }
+.modal { background:var(--surface); border-radius:16px; width:100%; max-width:740px; box-shadow:0 8px 40px rgba(0,0,0,.15); animation:slideIn .2s ease; }
+@keyframes slideIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+.modal-header  { padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.modal-header h2 { font-size:16px; font-weight:600; }
+.modal-close { width:28px; height:28px; border:none; background:var(--bg); border-radius:6px; cursor:pointer; font-size:16px; color:var(--muted); display:flex; align-items:center; justify-content:center; }
+.modal-close:hover { background:var(--border); }
+.modal-body   { padding:24px; }
+.modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; }
+.form-field { margin-bottom:18px; }
+.form-field label { display:block; font-size:13px; font-weight:500; margin-bottom:6px; }
+.form-field .hint { font-size:12px; color:var(--muted); margin-bottom:6px; }
+.form-field input  { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; transition:border-color .15s; }
+.form-field input:focus { border-color:var(--gold); }
+.form-field select { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; background:var(--surface); transition:border-color .15s; cursor:pointer; }
+.form-field select:focus { border-color:var(--gold); }
+.form-row { display:flex; gap:12px; }
+.form-row .form-field { flex:1; min-width:0; }
+
+/* Multiple menu items editor */
+.menu-items-editor { display:flex; flex-direction:column; gap:6px; }
+.menu-item-row { display:flex; gap:8px; align-items:center; }
+.menu-item-row select { flex:0 0 210px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; outline:none; background:var(--surface); cursor:pointer; }
+.menu-item-row select:focus { border-color:var(--gold); }
+.menu-item-row input  { flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; outline:none; }
+.menu-item-row input:focus  { border-color:var(--gold); }
+.btn-rm-mi { padding:6px 9px; background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); border-radius:6px; font-size:12px; cursor:pointer; flex-shrink:0; }
+.btn-rm-mi:hover { background:#fecaca; }
+.btn-add-mi { padding:6px 14px; background:var(--bg); border:1px solid var(--border); border-radius:7px; font-size:12px; cursor:pointer; transition:all .15s; align-self:flex-start; margin-top:4px; }
+.btn-add-mi:hover { background:var(--border); }
+
+/* Rich text editor */
+.editor-section label { display:block; font-size:13px; font-weight:500; margin-bottom:8px; }
+.editor-toolbar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:8px 10px; background:var(--bg); border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; }
+.fmt-btn { padding:5px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); font-size:12px; font-weight:500; cursor:pointer; color:var(--text); transition:all .15s; white-space:nowrap; }
+.fmt-btn:hover { background:var(--border); }
+.fmt-btn.term-btn { color:var(--gold); border-color:rgba(201,168,76,.4); }
+.fmt-btn.term-btn:hover { background:rgba(201,168,76,.1); }
+.fmt-divider { width:1px; height:20px; background:var(--border); margin:0 2px; }
+.fmt-btn.ai-btn { background:var(--purple-bg); color:var(--purple); border-color:var(--purple-border); margin-left:auto; }
+.fmt-btn.ai-btn:hover { background:#ede9fe; }
+.fmt-btn.ai-btn:disabled { opacity:.5; cursor:not-allowed; }
+.editor { min-height:160px; max-height:300px; overflow-y:auto; padding:12px 14px; border:1px solid var(--border); border-radius:0 0 8px 8px; font-size:14px; line-height:1.7; outline:none; transition:border-color .15s; }
+.editor:focus { border-color:var(--gold); }
+.editor .term { color:var(--gold); font-weight:500; }
+.editor-hint { font-size:11px; color:var(--muted); margin-top:5px; }
+.btn-cancel { padding:9px 18px; background:transparent; border:1px solid var(--border); border-radius:8px; font-size:14px; cursor:pointer; transition:all .15s; }
+.btn-cancel:hover { background:var(--bg); }
+.btn-save { padding:9px 20px; background:var(--text); color:white; border:none; border-radius:8px; font-size:14px; font-weight:500; cursor:pointer; transition:opacity .15s; }
+.btn-save:hover { opacity:.85; }
+
+/* ── Settings tabs ── */
+.cfg-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:20px; gap:0; background:var(--surface); border-radius:12px 12px 0 0; overflow:hidden; }
+.cfg-tab { padding:12px 18px; font-size:13px; font-weight:500; color:var(--muted); cursor:pointer; border:none; background:transparent; border-bottom:2px solid transparent; transition:all .15s; display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.cfg-tab:hover  { color:var(--text); background:var(--bg); }
+.cfg-tab.active { color:var(--gold); border-bottom-color:var(--gold); background:rgba(201,168,76,.05); }
+.cfg-panel { display:none; background:var(--surface); border:1px solid var(--border); border-top:none; border-radius:0 0 12px 12px; padding:22px; }
+.cfg-panel.active { display:block; }
+.cfg-field { margin-bottom:14px; }
+.cfg-field:last-child { margin-bottom:0; }
+.cfg-field label { display:block; font-size:13px; font-weight:500; margin-bottom:5px; }
+.cfg-field input,.cfg-field textarea,.cfg-field select { width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical; background:var(--surface); transition:border-color .15s; }
+.cfg-field input:focus,.cfg-field textarea:focus,.cfg-field select:focus { border-color:var(--gold); }
+.cfg-field .hint { font-size:12px; color:var(--muted); margin-bottom:5px; }
+.cfg-row { display:flex; gap:12px; }
+.cfg-row .cfg-field { flex:1; min-width:0; }
+.cfg-save-bar { display:flex; justify-content:flex-end; padding-top:14px; border-top:1px solid var(--border); margin-top:16px; }
+.qr-editor { display:flex; flex-direction:column; gap:6px; }
+.qr-row { display:flex; gap:8px; align-items:center; }
+.qr-row input { flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; outline:none; transition:border-color .15s; }
+.qr-row .qr-lbl { flex:0 0 180px; }
+.qr-row input:focus { border-color:var(--gold); }
+.btn-rm-qr { padding:6px 8px; background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); border-radius:6px; font-size:12px; cursor:pointer; flex-shrink:0; }
+.btn-rm-qr:hover { background:#fecaca; }
+.btn-add-qr { padding:6px 14px; background:var(--bg); border:1px solid var(--border); border-radius:7px; font-size:12px; cursor:pointer; transition:all .15s; align-self:flex-start; margin-top:4px; }
+.btn-add-qr:hover { background:var(--border); }
+.btn-vis-qr { padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:14px; cursor:pointer; flex-shrink:0; background:var(--surface); transition:all .15s; line-height:1; }
+.btn-vis-qr.off { opacity:.35; filter:grayscale(1); }
+.cat-drag { cursor:grab; color:var(--muted); font-size:18px; padding:0 2px; user-select:none; flex-shrink:0; line-height:1; }
+.cat-drag:active { cursor:grabbing; }
+.cat-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; transition:opacity .15s; }
+.cat-row.dragging { opacity:.4; }
+.cat-row.drag-over { outline:2px solid var(--gold); border-radius:8px; }
+.cat-icon-btn { font-size:20px; width:40px; height:38px; border:1px solid var(--border); border-radius:8px; background:var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:border-color .15s; }
+.cat-icon-btn:hover { border-color:var(--gold); }
+.cat-icon-input { flex:0 0 60px; padding:8px 6px; border:1px solid var(--border); border-radius:8px; font-size:16px; text-align:center; outline:none; }
+.cat-icon-input:focus { border-color:var(--gold); }
+.cat-name-input { flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; outline:none; }
+.cat-name-input:focus { border-color:var(--gold); }
+.btn-rm-cat { padding:6px 8px; background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); border-radius:6px; font-size:12px; cursor:pointer; flex-shrink:0; }
+.btn-rm-cat:hover { background:#fecaca; }
+.btn-add-cat { padding:6px 14px; background:var(--bg); border:1px solid var(--border); border-radius:7px; font-size:12px; cursor:pointer; transition:all .15s; margin-top:4px; }
+.btn-add-cat:hover { background:var(--border); }
+.emoji-picker { position:fixed; z-index:999; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); display:grid; grid-template-columns:repeat(8,1fr); gap:4px; width:260px; }
+.emoji-picker button { font-size:20px; border:none; background:none; cursor:pointer; border-radius:6px; padding:3px; line-height:1; transition:background .1s; }
+.emoji-picker button:hover { background:var(--border); }
+.key-status { font-size:12px; margin-bottom:6px; }
+
+/* ── Stats ── */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:24px; }
+.stat-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; position:relative; overflow:hidden; }
+.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+.stat-card.gold::before   { background:linear-gradient(90deg,var(--gold),var(--gold-light)); }
+.stat-card.blue::before   { background:linear-gradient(90deg,var(--blue),#60a5fa); }
+.stat-card.green::before  { background:linear-gradient(90deg,var(--green),#4ade80); }
+.stat-card.purple::before { background:linear-gradient(90deg,var(--purple),#a78bfa); }
+.stat-card.amber::before  { background:linear-gradient(90deg,var(--amber),#fbbf24); }
+.stat-card.red::before    { background:linear-gradient(90deg,var(--red),#f87171); }
+.stat-num   { font-size:30px; font-weight:700; line-height:1; margin-bottom:5px; }
+.stat-label { font-size:12px; color:var(--muted); font-weight:500; }
+.stat-sub   { font-size:11px; color:var(--muted); margin-top:3px; }
+.stats-row  { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px; }
+.stats-section { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; }
+.stats-section h3 { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+.bar-row   { display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:13px; }
+.bar-row:last-child { margin-bottom:0; }
+.bar-label { flex:0 0 130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+.bar-track { flex:1; height:6px; background:var(--bg); border-radius:4px; overflow:hidden; }
+.bar-fill  { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--gold),var(--gold-light)); transition:width .4s ease; }
+.bar-fill.blue   { background:linear-gradient(90deg,var(--blue),#60a5fa); }
+.bar-fill.purple { background:linear-gradient(90deg,var(--purple),#a78bfa); }
+.bar-count { flex:0 0 28px; text-align:right; font-weight:600; font-size:12px; color:var(--muted); }
+.usage-table { width:100%; border-collapse:collapse; font-size:13px; }
+.usage-table th { padding:8px 12px; text-align:left; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; border-bottom:1px solid var(--border); }
+.usage-table td { padding:9px 12px; border-bottom:1px solid var(--border); }
+.usage-table tr:last-child td { border-bottom:none; }
+.cost-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; background:var(--green-bg); color:#15803d; border:1px solid var(--green-border); }
+.btn-ghost-sm { padding:5px 10px; background:transparent; border:1px solid var(--border); border-radius:6px; font-size:12px; cursor:pointer; color:var(--muted); transition:all .15s; }
+.btn-ghost-sm:hover { border-color:var(--red); color:var(--red); background:var(--red-bg); }
+.health-list { display:flex; flex-direction:column; gap:6px; }
+.hi { display:flex; align-items:center; gap:8px; padding:7px 11px; border-radius:8px; font-size:13px; }
+.hi.ok     { background:var(--green-bg); color:#15803d; }
+.hi.warn   { background:var(--amber-bg); color:#92400e; }
+.hi.danger { background:var(--red-bg);   color:#b91c1c; }
+.hd { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.hi.ok .hd    { background:var(--green); }
+.hi.warn .hd  { background:var(--amber); }
+.hi.danger .hd { background:var(--red); }
+
+/* ── Toast ── */
+#toast { position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:8px; font-size:14px; font-weight:500; display:none; z-index:200; box-shadow:0 4px 16px rgba(0,0,0,.12); }
+#toast.success { background:var(--green-bg); color:#15803d; border:1px solid var(--green-border); }
+#toast.error   { background:var(--red-bg);   color:#b91c1c; border:1px solid var(--red-border); }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">⚙️</div>
+    <h1>Админ-портал</h1>
+    <p>Чат-бот Александра Танцюры<br>Управление контентом</p>
+    <div class="field">
+      <label>Пароль</label>
+      <input type="password" id="passwordInput" placeholder="Введите пароль…" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <button class="btn-primary" onclick="login()">Войти</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="mainScreen">
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">🤖</div>
+      <div class="sidebar-title">Чат-бот<br>Александра Танцюры</div>
+      <div class="sidebar-sub">Админ-портал</div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" id="navFaq"    onclick="showPage('faq')">
+        <span class="nav-icon">📝</span> FAQ-статьи
+        <span class="nav-badge" id="navBadge">0</span>
+      </button>
+      <button class="nav-item" id="navConfig" onclick="showPage('config')">
+        <span class="nav-icon">⚙️</span> Настройки
+      </button>
+      <button class="nav-item" id="navStats"  onclick="showPage('stats')">
+        <span class="nav-icon">📊</span> Статистика
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" onclick="logout()"><span style="font-size:15px">↩</span> Выйти</button>
+    </div>
+  </aside>
+
+  <!-- Content -->
+  <div class="main-content">
+    <div class="page-header">
+      <h1 id="pageTitle">FAQ-статьи</h1>
+      <span class="header-muted" id="headerStats"></span>
+    </div>
+    <div class="page-body">
+
+      <!-- ══ FAQ page ══ -->
+      <div class="page active" id="pageFaq">
+        <div class="toolbar">
+          <div class="search-wrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" id="searchInput" placeholder="Поиск по теме, ключевому слову или ответу…" oninput="onSearch(this.value)">
+          </div>
+          <button class="btn-add" onclick="openModal(null)">＋ Новый вопрос</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Тема</th><th>Ключевые слова</th><th>Меню</th><th>Превью ответа</th><th>Действия</th>
+            </tr></thead>
+            <tbody id="faqBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ Config page ══ -->
+      <div class="page" id="pageConfig">
+        <!-- Tab bar -->
+        <div class="cfg-tabs">
+          <button class="cfg-tab active" onclick="showCfgTab('profile')">👤 Профиль</button>
+          <button class="cfg-tab" onclick="showCfgTab('welcome')">💬 Приветствие</button>
+          <button class="cfg-tab" onclick="showCfgTab('contacts')">📞 Контакты</button>
+          <button class="cfg-tab" onclick="showCfgTab('buttons')">🔘 Быстрые кнопки</button>
+          <button class="cfg-tab" onclick="showCfgTab('categories')">🗂 Категории</button>
+          <button class="cfg-tab" onclick="showCfgTab('apikeys')">🔑 API-ключи</button>
+        </div>
+
+        <!-- Tab: Профиль -->
+        <div class="cfg-panel active" id="cfgTab-profile">
+          <div class="cfg-row">
+            <div class="cfg-field"><label>Имя</label><input type="text" id="cfgBotName" placeholder="Александр Танцюра"></div>
+            <div class="cfg-field"><label>Подзаголовок</label><input type="text" id="cfgBotSubtitle" placeholder="Бухгалтер · Аликанте 🇪🇸"></div>
+          </div>
+          <div class="cfg-field"><label>Строка биографии (под именем в шапке)</label><input type="text" id="cfgBotBio" placeholder="10 лет опыта · русскоязычный"></div>
+          <div class="cfg-section-title" style="margin:18px 0 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Карточка «Обо мне»</div>
+          <div class="cfg-row">
+            <div class="cfg-field"><label>📍 Город / регион</label><input type="text" id="cfgProfileLocation" placeholder="Аликанте, Испания"></div>
+            <div class="cfg-field"><label>⭐ Опыт</label><input type="text" id="cfgProfileExperience" placeholder="10 лет опыта"></div>
+          </div>
+          <div class="cfg-field"><label>🗣 Языки</label><input type="text" id="cfgProfileLanguages" placeholder="Русский, украинский, испанский"></div>
+          <div class="cfg-field"><label>📋 Специализация</label><input type="text" id="cfgProfileSpecialty" placeholder="Налоги и бухгалтерия в Испании"></div>
+          <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('profile')">Сохранить</button></div>
+        </div>
+
+        <!-- Tab: Приветствие -->
+        <div class="cfg-panel" id="cfgTab-welcome">
+          <div class="cfg-field"><label>Приветственное сообщение</label><div class="hint">Поддерживает &lt;strong&gt; для жирного текста и &lt;br&gt; для переноса.</div><textarea id="cfgWelcomeRU" rows="4"></textarea></div>
+          <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('welcome')">Сохранить</button></div>
+        </div>
+
+        <!-- Tab: Контакты -->
+        <div class="cfg-panel" id="cfgTab-contacts">
+          <div class="cfg-row">
+            <div class="cfg-field"><label>WhatsApp (только цифры)</label><input type="text" id="cfgWhatsapp" placeholder="34623392451"></div>
+            <div class="cfg-field"><label>Telegram (без @)</label><input type="text" id="cfgTelegram" placeholder="AlexanderTantsiura"></div>
+          </div>
+          <div class="cfg-row">
+            <div class="cfg-field"><label>Сайт</label><input type="text" id="cfgSite" placeholder="https://nalogspain.com/"></div>
+            <div class="cfg-field"><label>Email</label><input type="text" id="cfgEmail" placeholder="example@gmail.com"></div>
+          </div>
+          <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('contacts')">Сохранить</button></div>
+        </div>
+
+        <!-- Tab: Кнопки -->
+        <div class="cfg-panel" id="cfgTab-buttons">
+          <div class="cfg-field"><label>Быстрые кнопки</label><div class="hint">👁 = sichtbar im Bot, durchgestrichen = ausgeblendet. Текст кнопки | Вопрос боту.</div></div>
+          <div class="qr-editor" id="qrEditor"></div>
+          <button class="btn-add-qr" onclick="addQrRow()">＋ Добавить кнопку</button>
+          <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('quickReplies')">Сохранить</button></div>
+        </div>
+
+        <!-- Tab: Категории -->
+        <div class="cfg-panel" id="cfgTab-categories">
+          <div class="cfg-field"><label>Категории меню</label><div class="hint">Каждая строка — одна категория в боте. Нажмите на иконку, чтобы выбрать эмодзи.</div></div>
+          <div id="catEditor"></div>
+          <button class="btn-add-cat" onclick="addCatRow()">＋ Добавить категорию</button>
+          <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('categories')">Сохранить</button></div>
+        </div>
+
+        <!-- Tab: API-ключи -->
+        <div class="cfg-panel" id="cfgTab-apikeys">
+          <div class="cfg-row">
+            <div class="cfg-field">
+              <label>🤖 Ключ для клиентского чата</label>
+              <div class="key-status" id="hintKeyClient"></div>
+              <input type="password" id="cfgKeyClient" autocomplete="new-password" placeholder="sk-ant-… (пусто = без изменений)">
+            </div>
+            <div class="cfg-field">
+              <label>⚙️ Ключ для ИИ-форматирования в Админ-панели</label>
+              <div class="key-status" id="hintKeyAdmin"></div>
+              <input type="password" id="cfgKeyAdmin" autocomplete="new-password" placeholder="sk-ant-… (пусто = использует ключ клиентов)">
+            </div>
+          </div>
+          <div class="cfg-row">
+            <div class="cfg-field">
+              <label>Модель для клиентского чата</label>
+              <select id="cfgModelClient">
+                <option value="claude-opus-4-7">claude-opus-4-7 — максимальное качество</option>
+                <option value="claude-sonnet-4-6" selected>claude-sonnet-4-6 — рекомендуется</option>
+                <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 — быстрее, дешевле</option>
+              </select>
+            </div>
+            <div class="cfg-field">
+              <label>Модель для ИИ-форматирования</label>
+              <select id="cfgModelAdmin">
+                <option value="claude-opus-4-7">claude-opus-4-7 — максимальное качество</option>
+                <option value="claude-sonnet-4-6" selected>claude-sonnet-4-6 — рекомендуется</option>
+                <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 — быстрее</option>
+              </select>
+            </div>
+          </div>
+          <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('apikeys')">Сохранить</button></div>
+        </div>
+      </div>
+
+      <!-- ══ Stats page ══ -->
+      <div class="page" id="pageStats">
+        <div class="stats-grid" id="statsCards"></div>
+        <div class="stats-row">
+          <div class="stats-section">
+            <h3>Топ тем <span id="btnResetStats"><button class="btn-ghost-sm" onclick="resetStats()">Сбросить статистику</button></span></h3>
+            <div id="statsTopics"></div>
+          </div>
+          <div class="stats-section">
+            <h3>Распределение по категориям</h3>
+            <div id="statsCats"></div>
+          </div>
+        </div>
+        <div class="stats-section" style="margin-bottom:20px">
+          <h3>Использование токенов</h3>
+          <table class="usage-table">
+            <thead><tr><th>Ключ</th><th>Модель</th><th>Токены (вход)</th><th>Токены (выход)</th><th>~Стоимость (USD)</th></tr></thead>
+            <tbody id="usageBody"></tbody>
+          </table>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">* Оценочная стоимость на основе публичных цен Anthropic. Реальный баланс — на console.anthropic.com.</div>
+        </div>
+        <div class="stats-section">
+          <h3>Качество данных</h3>
+          <div class="health-list" id="healthList"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- FAQ Modal -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="backdropClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Новый вопрос</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field">
+        <label>Тема</label>
+        <input type="text" id="mTopic" placeholder="Например: IVA / НДС">
+      </div>
+      <div class="form-field">
+        <label>Ключевые слова</label>
+        <div class="hint">Через запятую — бот ищет эти слова в вопросе пользователя.</div>
+        <input type="text" id="mKeys" placeholder="iva, ндс, что такое iva">
+      </div>
+      <div class="form-field">
+        <label>Пункты меню <span style="font-weight:400;color:var(--muted)">(можно несколько)</span></label>
+        <div class="hint">Каждая строка — одна кнопка в меню. Один FAQ-ответ может появляться в нескольких категориях.</div>
+        <div class="menu-items-editor" id="menuItemsEditor"></div>
+        <button class="btn-add-mi" onclick="addMenuItemRow()">＋ Добавить кнопку меню</button>
+      </div>
+      <div class="editor-section">
+        <label>Ответ</label>
+        <div class="editor-toolbar">
+          <button class="fmt-btn term-btn" onmousedown="event.preventDefault()" onclick="fmtTerm()">● Термин</button>
+          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBold()"><strong>Ж</strong></button>
+          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtList()">🔹 Список</button>
+          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBr()">↵ Перенос</button>
+          <div class="fmt-divider"></div>
+          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtRemove()">✕ Убрать формат</button>
+          <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Форматировать ИИ</button>
+        </div>
+        <div class="editor" id="mAnswer" contenteditable="true" onkeydown="editorKeydown(event)" onpaste="editorPaste(event)"></div>
+        <div class="editor-hint">Введите текст → выделите → нажмите кнопку. Или: введите → <strong>✨ Форматировать ИИ</strong> сделает всё автоматически.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn-save"   onclick="saveEntry()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let token = localStorage.getItem('adminToken');
+let faqData    = { ru: [] };
+let configData = {};
+let serverStats = {};
+let editingId  = null;
+let searchQuery = '';
+
+function buildCategorySelect() {
+  // Rebuild the category <select> options in any open FAQ modal rows
+  const cats = configData.categories || [];
+  document.querySelectorAll('#menuItemsEditor .mi-cat-select').forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">— без категории —</option>` +
+      cats.map(c => {
+        const val = `${c.icon} ${c.name}`.trim();
+        return `<option value="${escHtml(val)}" ${val===cur?'selected':''}>${escHtml(c.icon)} ${escHtml(c.name)}</option>`;
+      }).join('');
+  });
+}
+
+if (token) loadAndShow();
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+async function login() {
+  const pw = document.getElementById('passwordInput').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pw}) });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Ошибка при входе'; return; }
+    token = data.token; localStorage.setItem('adminToken', token); loadAndShow();
+  } catch { errEl.textContent = 'Сервер недоступен'; }
+}
+
+function logout() {
+  localStorage.removeItem('adminToken'); token = null;
+  document.getElementById('mainScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('passwordInput').value = '';
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+
+async function loadAndShow() {
+  try {
+    const [faqRes, cfgRes, adminCfgRes, statsRes] = await Promise.all([
+      fetch('/api/faq'),
+      fetch('/api/config'),
+      fetch('/api/admin/config', { headers:{'Authorization':`Bearer ${token}`} }),
+      fetch('/api/admin/stats',  { headers:{'Authorization':`Bearer ${token}`} })
+    ]);
+    if (!faqRes.ok) throw new Error();
+    faqData     = await faqRes.json();
+    const pub   = cfgRes.ok      ? await cfgRes.json()      : {};
+    const priv  = adminCfgRes.ok ? await adminCfgRes.json() : {};
+    configData  = { ...pub, ...priv };
+    serverStats = statsRes.ok ? await statsRes.json() : {};
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainScreen').style.display  = 'block';
+    renderTable(); populateConfigForm(); renderStats(); buildCategorySelect();
+  } catch { if (token) logout(); }
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+const PAGE_TITLES = { faq:'FAQ-статьи', config:'Настройки', stats:'Статистика' };
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page' + page[0].toUpperCase() + page.slice(1)).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav' + page[0].toUpperCase() + page.slice(1)).classList.add('active');
+  document.getElementById('pageTitle').textContent = PAGE_TITLES[page];
+  if (page === 'stats') { fetch('/api/admin/stats',{headers:{'Authorization':`Bearer ${token}`}}).then(r=>r.json()).then(d=>{serverStats=d;renderStats();}); }
+}
+
+function showCfgTab(tab) {
+  document.querySelectorAll('.cfg-tab').forEach(t => t.classList.toggle('active', t.getAttribute('onclick') === `showCfgTab('${tab}')`));
+  document.querySelectorAll('.cfg-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('cfgTab-' + tab).classList.add('active');
+}
+
+// ── Search / table ────────────────────────────────────────────────────────────
+
+const collapsedGroups = new Set();
+
+function onSearch(v) { searchQuery = v.trim().toLowerCase(); renderTable(); }
+
+function getFiltered() {
+  const entries = faqData.ru || [];
+  if (!searchQuery) return entries;
+  return entries.filter(e =>
+    e.topic.toLowerCase().includes(searchQuery) ||
+    (e.keys||[]).some(k => k.toLowerCase().includes(searchQuery)) ||
+    stripHtml(e.answer).toLowerCase().includes(searchQuery)
+  );
+}
+
+function highlight(text, q) {
+  if (!q) return escHtml(text);
+  const idx = text.toLowerCase().indexOf(q);
+  if (idx === -1) return escHtml(text);
+  return escHtml(text.slice(0,idx)) + '<mark>' + escHtml(text.slice(idx,idx+q.length)) + '</mark>' + escHtml(text.slice(idx+q.length));
+}
+
+function getPrimaryCategory(e) {
+  if (e.menuItems?.length) return e.menuItems[0].category;
+  if (e.menuCategory)      return e.menuCategory;
+  return '';
+}
+
+function renderRow(e, hidden) {
+  const preview  = stripHtml(e.answer).slice(0,80) + (e.answer.length > 80 ? '…' : '');
+  const keysHtml = (e.keys||[]).slice(0,4).map(k=>`<span class="key-chip">${highlight(k,searchQuery)}</span>`).join('') +
+    ((e.keys||[]).length>4 ? `<span class="key-chip">+${e.keys.length-4}</span>` : '');
+  const menuItems = getMenuItems(e);
+  const uniqueCats = [...new Set(menuItems.map(m => m.category).filter(Boolean))];
+  const menuHtml  = uniqueCats.map(c => `<span class="menu-chip">${escHtml(c)}</span>`).join('<span class="cat-sep"> · </span>');
+  return `<tr${hidden?' class="group-hidden"':''}>
+    <td style="font-weight:500;min-width:130px">${highlight(e.topic,searchQuery)}</td>
+    <td><div class="keys-wrap">${keysHtml}</div></td>
+    <td>${menuHtml || '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
+    <td style="color:var(--muted)">${highlight(preview,searchQuery)}</td>
+    <td style="width:140px;white-space:nowrap">
+      <button class="btn-edit"   onclick="openModal(${e.id})">Изменить</button>
+      <button class="btn-delete" onclick="deleteEntry(${e.id})">Удалить</button>
+    </td></tr>`;
+}
+
+function renderTable() {
+  const entries = getFiltered();
+  const total   = (faqData.ru||[]).length;
+  document.getElementById('headerStats').textContent = `${total} записей`;
+  document.getElementById('navBadge').textContent    = total;
+
+  const tbody = document.getElementById('faqBody');
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">${searchQuery ? 'Ничего не найдено по запросу «'+escHtml(searchQuery)+'»' : 'Нет записей. Нажмите «Новый вопрос».'}</div></td></tr>`;
+    return;
+  }
+
+  // Flat list when searching
+  if (searchQuery) {
+    tbody.innerHTML = entries.map(e => renderRow(e, false)).join('');
+    return;
+  }
+
+  // Grouped by category
+  const catOrder = (configData.categories||[]).map(c => (c.icon+' '+c.name).trim());
+  const groups   = new Map();
+  entries.forEach(e => {
+    const key = getPrimaryCategory(e);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  });
+  groups.forEach(arr => arr.sort((a,b) => a.topic.localeCompare(b.topic, 'ru')));
+
+  const orderedKeys = [
+    ...catOrder.filter(k => groups.has(k)),
+    ...[...groups.keys()].filter(k => !catOrder.includes(k))
+  ];
+
+  let html = '';
+  orderedKeys.forEach(key => {
+    const arr        = groups.get(key);
+    const collapsed  = collapsedGroups.has(key);
+    const cat        = (configData.categories||[]).find(c => (c.icon+' '+c.name).trim() === key);
+    const icon       = cat?.icon || key.split(' ')[0] || '📁';
+    const name       = cat?.name || key.split(' ').slice(1).join(' ') || key || '— без категории —';
+    const safeKey    = JSON.stringify(key);
+    html += `<tr class="cat-group-row${collapsed?' collapsed':''}" onclick='toggleGroup(${safeKey})'>
+      <td colspan="5"><span class="g-arrow">▼</span> <span class="g-icon">${escHtml(icon)}</span> <span class="g-name">${escHtml(name)}</span><span class="g-count">${arr.length}</span></td>
+    </tr>`;
+    arr.forEach(e => { html += renderRow(e, collapsed); });
+  });
+  tbody.innerHTML = html;
+}
+
+function toggleGroup(key) {
+  collapsedGroups.has(key) ? collapsedGroups.delete(key) : collapsedGroups.add(key);
+  renderTable();
+}
+
+// ── Menu items helpers ────────────────────────────────────────────────────────
+
+function getMenuItems(entry) {
+  // Support new menuItems array and old menuCategory/menuLabel fields
+  if (entry.menuItems && entry.menuItems.length) return entry.menuItems;
+  if (entry.menuCategory && entry.menuLabel) return [{category: entry.menuCategory, label: entry.menuLabel}];
+  return [];
+}
+
+function renderMenuItemsEditor(items) {
+  const cats = configData.categories || [];
+  const el = document.getElementById('menuItemsEditor');
+  el.innerHTML = (items||[]).map((item,i) => {
+    const options = `<option value="">— без категории —</option>` +
+      cats.map(c => {
+        const val = `${c.icon} ${c.name}`.trim();
+        return `<option value="${escHtml(val)}" ${val===item.category?'selected':''}>${escHtml(c.icon)} ${escHtml(c.name)}</option>`;
+      }).join('');
+    return `
+    <div class="menu-item-row" data-i="${i}">
+      <select class="mi-cat-select">${options}</select>
+      <input type="text" value="${escHtml(item.label||'')}" placeholder="Текст кнопки" maxlength="30">
+      <button class="btn-rm-mi" onclick="removeMenuItemRow(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function collectRowItems() {
+  return [...document.querySelectorAll('#menuItemsEditor .menu-item-row')]
+    .map(r => ({
+      category: r.querySelector('select').value,
+      label: r.querySelector('input').value.trim()
+    }));
+}
+
+function addMenuItemRow() {
+  const items = collectRowItems();
+  items.push({ category: '', label: '' });
+  renderMenuItemsEditor(items);
+}
+
+function removeMenuItemRow(i) {
+  const items = collectRowItems();
+  items.splice(i, 1);
+  renderMenuItemsEditor(items);
+}
+
+function collectMenuItems() {
+  return collectRowItems().filter(m => m.category && m.label);
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+
+function openModal(id) {
+  editingId = id;
+  document.getElementById('modalTitle').textContent = id === null ? 'Новый вопрос' : 'Редактировать вопрос';
+  if (id !== null) {
+    const entry = (faqData.ru||[]).find(e => e.id === id);
+    if (!entry) return;
+    document.getElementById('mTopic').value = entry.topic;
+    document.getElementById('mKeys').value  = (entry.keys||[]).join(', ');
+    document.getElementById('mAnswer').innerHTML = entry.answer + '<br>';
+    renderMenuItemsEditor(getMenuItems(entry));
+  } else {
+    document.getElementById('mTopic').value = '';
+    document.getElementById('mKeys').value  = '';
+    document.getElementById('mAnswer').innerHTML = '<br>';
+    renderMenuItemsEditor([]);
+  }
+  document.getElementById('modalBackdrop').classList.add('open');
+  document.getElementById('mTopic').focus();
+}
+
+function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); editingId = null; }
+function backdropClick(e) { if (e.target === document.getElementById('modalBackdrop')) closeModal(); }
+
+async function saveEntry() {
+  const topic  = document.getElementById('mTopic').value.trim();
+  const keys   = document.getElementById('mKeys').value.split(',').map(k=>k.trim()).filter(Boolean);
+  const answer = document.getElementById('mAnswer').innerHTML.trim().replace(/<br\s*\/?>$/i, '').trim();
+  const menuItems = collectMenuItems();
+  if (!topic)  { showToast('Тема не может быть пустой', 'error'); return; }
+  if (!keys.length) { showToast('Нужно хотя бы одно ключевое слово', 'error'); return; }
+  if (!answer) { showToast('Ответ не может быть пустым', 'error'); return; }
+  const isNew = editingId === null;
+  const url   = isNew ? '/api/admin/faq/ru' : `/api/admin/faq/ru/${editingId}`;
+  try {
+    const res = await fetch(url, {
+      method: isNew ? 'POST' : 'PUT',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
+      body: JSON.stringify({ topic, keys, answer, menuItems })
+    });
+    if (res.status === 401) { logout(); showToast('Сессия истекла — войдите снова','error'); return; }
+    if (!res.ok) { showToast('Ошибка при сохранении','error'); return; }
+    const saved = await res.json();
+    faqData.ru = isNew ? [...(faqData.ru||[]), saved] : faqData.ru.map(e => e.id===editingId ? saved : e);
+    buildCategorySelect(); renderTable(); closeModal(); showToast('Сохранено ✓','success');
+  } catch { showToast('Сервер недоступен','error'); }
+}
+
+async function deleteEntry(id) {
+  const entry = (faqData.ru||[]).find(e => e.id === id);
+  if (!entry || !confirm(`Удалить "${entry.topic}"?`)) return;
+  try {
+    const res = await fetch(`/api/admin/faq/ru/${id}`, { method:'DELETE', headers:{'Authorization':`Bearer ${token}`} });
+    if (res.status === 401) { logout(); showToast('Сессия истекла — войдите снова','error'); return; }
+    if (!res.ok) { showToast('Ошибка при удалении','error'); return; }
+    faqData.ru = faqData.ru.filter(e => e.id !== id);
+    renderTable(); showToast('Удалено ✓','success');
+  } catch { showToast('Сервер недоступен','error'); }
+}
+
+// ── Rich text editor ──────────────────────────────────────────────────────────
+
+function insertAtCursor(html) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const frag = tpl.content;
+  const last = frag.lastChild;
+  range.insertNode(frag);
+  if (last) {
+    const r = document.createRange();
+    r.setStartAfter(last);
+    r.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
+}
+
+function insertBr() {
+  const editor = document.getElementById('mAnswer');
+  editor.focus();
+  document.execCommand('insertLineBreak');
+}
+
+function editorKeydown(e) {
+  if (e.key === 'Enter') { e.preventDefault(); document.execCommand('insertLineBreak'); }
+}
+function editorPaste(e) {
+  e.preventDefault();
+  const text = e.clipboardData.getData('text/plain');
+  insertAtCursor(text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'));
+}
+function fmtTerm() { wrapSelection('span','term'); }
+function fmtBold() { wrapSelection('strong',null); }
+function fmtBr()   { document.getElementById('mAnswer').focus(); insertBr(); }
+function fmtList() {
+  const editor = document.getElementById('mAnswer');
+  editor.focus();
+  const isEmpty = editor.textContent.trim() === '';
+  if (isEmpty) insertAtCursor('🔹 '); else { insertBr(); insertAtCursor('🔹 '); }
+}
+function fmtRemove() {
+  const sel=window.getSelection(); if(!sel.rangeCount||sel.isCollapsed){showToast('Сначала выделите текст','error');return;}
+  const r=sel.getRangeAt(0),t=r.toString(); r.deleteContents(); r.insertNode(document.createTextNode(t));
+}
+function wrapSelection(tag,cls) {
+  const editor=document.getElementById('mAnswer'); editor.focus();
+  const sel=window.getSelection(); if(!sel.rangeCount||sel.isCollapsed){showToast('Сначала выделите текст','error');return;}
+  const r=sel.getRangeAt(0),txt=r.toString(); if(!txt)return;
+  const html=cls?`<${tag} class="${cls}">${txt}</${tag}>`:`<${tag}>${txt}</${tag}>`;
+  r.deleteContents();
+  const tmp=document.createElement('div'); tmp.innerHTML=html;
+  const frag=document.createDocumentFragment();
+  while(tmp.firstChild) frag.appendChild(tmp.firstChild);
+  r.insertNode(frag); sel.collapseToEnd();
+}
+
+// ── AI formatting ─────────────────────────────────────────────────────────────
+
+async function aiFormat() {
+  const editor = document.getElementById('mAnswer');
+  const text   = editor.innerText.trim();
+  if (!text) { showToast('Сначала введите текст','error'); return; }
+  const btn = document.getElementById('aiFmtBtn');
+  btn.textContent = '⏳ Форматирую…'; btn.disabled = true;
+  const sys = `Formatiere FAQ-Antworten für einen Steuerberater-Chatbot (Spanien, russischsprachige Kunden).
+Gib nur JSON zurück: {"html":"...","keywords":[...]}
+HTML-Regeln: Steuerbegriffe/Formulare → <span class="term">Begriff</span>. Listen: ✅/🔹/1️⃣ als Bullets, getrennt durch <br>. Abschnitte durch <br><br>. Kein <ul>/<li>. Schluss → <strong>.
+Keywords: 5–8 russische+spanische Suchbegriffe, Kleinbuchstaben.`;
+  try {
+    const res  = await fetch('/api/admin/chat', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:sys,messages:[{role:'user',content:text}]}) });
+    const data = await res.json();
+    if (!res.ok) { showToast('API-ошибка: '+(data.error?.message||'').slice(0,80),'error'); return; }
+    const raw = data.content?.[0]?.text?.trim() || '';
+    if (!raw) { showToast('Неожиданный ответ','error'); return; }
+    let parsed;
+    try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim()); }
+    catch { editor.innerHTML=raw; showToast('Отформатировано ✓ — ключевые слова не извлечены','success'); btn.textContent='✨ Форматировать ИИ'; btn.disabled=false; return; }
+    if (parsed.html) editor.innerHTML = parsed.html;
+    if (parsed.keywords?.length) { document.getElementById('mKeys').value=parsed.keywords.join(', '); showToast('Отформатировано ✓ — текст и ключевые слова предложены','success'); }
+    else showToast('Отформатировано ✓ — проверьте результат','success');
+  } catch(err) { showToast('Сетевая ошибка: '+err.message,'error'); }
+  btn.textContent='✨ Форматировать ИИ'; btn.disabled=false;
+}
+
+// ── Config form ───────────────────────────────────────────────────────────────
+
+function populateConfigForm() {
+  const c = configData;
+  document.getElementById('cfgBotName').value          = c.botName          || '';
+  document.getElementById('cfgBotSubtitle').value      = c.botSubtitle      || '';
+  document.getElementById('cfgBotBio').value           = c.botBio           || '';
+  document.getElementById('cfgProfileLocation').value  = c.profileLocation  || '';
+  document.getElementById('cfgProfileExperience').value= c.profileExperience|| '';
+  document.getElementById('cfgProfileLanguages').value = c.profileLanguages || '';
+  document.getElementById('cfgProfileSpecialty').value = c.profileSpecialty || '';
+  document.getElementById('cfgWelcomeRU').value   = c.welcomeRU   || '';
+  if (c.contacts) {
+    document.getElementById('cfgWhatsapp').value = c.contacts.whatsapp || '';
+    document.getElementById('cfgTelegram').value = c.contacts.telegram || '';
+    document.getElementById('cfgSite').value     = c.contacts.site     || '';
+    document.getElementById('cfgEmail').value    = c.contacts.email    || '';
+  }
+  if (c.modelClient) document.getElementById('cfgModelClient').value = c.modelClient;
+  if (c.modelAdmin)  document.getElementById('cfgModelAdmin').value  = c.modelAdmin;
+  const mkHint = masked => masked
+    ? `<span style="color:var(--green);font-weight:500">✓ Сохранён:</span> <code style="background:var(--bg);padding:1px 6px;border-radius:4px;font-size:12px">${masked}</code>`
+    : `<span style="color:var(--muted)">— не задан —</span>`;
+  document.getElementById('hintKeyClient').innerHTML = mkHint(c.apiKeyClientMasked);
+  document.getElementById('hintKeyAdmin').innerHTML  = mkHint(c.apiKeyAdminMasked);
+  document.getElementById('cfgKeyClient').value = '';
+  document.getElementById('cfgKeyAdmin').value  = '';
+  renderQrEditor();
+  renderCatEditor();
+}
+
+function renderQrEditor() {
+  const qrs = configData.quickReplies || [];
+  document.getElementById('qrEditor').innerHTML = qrs.map((qr,i) => {
+    const vis = qr.visible !== false;
+    return `
+    <div class="qr-row" data-i="${i}" data-visible="${vis}">
+      <button class="btn-vis-qr ${vis?'':'off'}" onclick="toggleQrVisible(${i})" title="${vis?'Sichtbar — klicken zum Ausblenden':'Ausgeblendet — klicken zum Einblenden'}">👁</button>
+      <input class="qr-lbl" type="text" value="${escHtml(qr.label)}" placeholder="💼 Текст кнопки">
+      <input type="text" value="${escHtml(qr.text)}" placeholder="Вопрос боту">
+      <button class="btn-rm-qr" onclick="removeQrRow(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleQrVisible(i) {
+  const row = [...document.querySelectorAll('#qrEditor .qr-row')][i];
+  const cur = row.dataset.visible !== 'false';
+  row.dataset.visible = String(!cur);
+  const btn = row.querySelector('.btn-vis-qr');
+  btn.classList.toggle('off', cur);
+  btn.title = cur ? 'Ausgeblendet — klicken zum Einblenden' : 'Sichtbar — klicken zum Ausblenden';
+}
+
+function addQrRow() { configData.quickReplies = configData.quickReplies||[]; configData.quickReplies.push({label:'',text:'',visible:true}); renderQrEditor(); }
+function removeQrRow(i) { configData.quickReplies.splice(i,1); renderQrEditor(); }
+
+const EMOJI_SUGGESTIONS = ['💼','📋','📅','📄','💰','📝','🏠','🚗','🏦','📊','💡','⚖️','🔐','🧾','📑','💲','🪪','⭐','📌','🗂️','📂','🏢','👤','🤝','✅','❓','💬','📞','🌐','🔔','🎯','📈'];
+let emojiPickerTarget = null;
+
+function showEmojiPicker(btn, iconInputId) {
+  document.getElementById('emojiPicker')?.remove();
+  emojiPickerTarget = document.getElementById(iconInputId);
+  const picker = document.createElement('div');
+  picker.id = 'emojiPicker';
+  picker.className = 'emoji-picker';
+  EMOJI_SUGGESTIONS.forEach(e => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = e;
+    b.onclick = () => { emojiPickerTarget.value = e; picker.remove(); };
+    picker.appendChild(b);
+  });
+  document.body.appendChild(picker);
+  const rect = btn.getBoundingClientRect();
+  picker.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+  picker.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 270) + 'px';
+  setTimeout(() => document.addEventListener('click', function h(ev) { if (!picker.contains(ev.target) && ev.target !== btn) { picker.remove(); document.removeEventListener('click', h); } }), 0);
+}
+
+let catDragSrc = null;
+
+function renderCatEditor() {
+  const cats = configData.categories || [];
+  const el = document.getElementById('catEditor');
+  el.innerHTML = cats.map((cat, i) => `
+    <div class="cat-row" data-i="${i}" draggable="true">
+      <span class="cat-drag" title="Перетащить для сортировки">⠿</span>
+      <button type="button" class="cat-icon-btn" onclick="showEmojiPicker(this,'catIcon${i}')" title="Выбрать эмодзи">${escHtml(cat.icon||'❓')}</button>
+      <input id="catIcon${i}" class="cat-icon-input" type="text" value="${escHtml(cat.icon||'')}" placeholder="💼" maxlength="4" oninput="this.previousElementSibling.textContent=this.value||'❓'">
+      <input class="cat-name-input" type="text" value="${escHtml(cat.name||'')}" placeholder="Название категории">
+      <button class="btn-rm-cat" onclick="removeCatRow(${i})">✕</button>
+    </div>`).join('');
+
+  el.querySelectorAll('.cat-row').forEach((row, i) => {
+    row.addEventListener('dragstart', e => {
+      catDragSrc = i;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      el.querySelectorAll('.cat-row').forEach(r => r.classList.remove('dragging', 'drag-over'));
+      catDragSrc = null;
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.querySelectorAll('.cat-row').forEach((r, j) => r.classList.toggle('drag-over', j === i && i !== catDragSrc));
+    });
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (catDragSrc === null || catDragSrc === i) return;
+      const items = collectCategories();
+      // collectCategories filters empty rows — rebuild from raw DOM to preserve order
+      const all = [...el.querySelectorAll('.cat-row')].map(r => ({
+        icon: r.querySelector('.cat-icon-input').value.trim(),
+        name: r.querySelector('.cat-name-input').value.trim()
+      }));
+      const [moved] = all.splice(catDragSrc, 1);
+      all.splice(i, 0, moved);
+      configData.categories = all;
+      renderCatEditor();
+    });
+  });
+}
+
+function addCatRow() {
+  configData.categories = configData.categories || [];
+  configData.categories.push({ icon: '', name: '' });
+  renderCatEditor();
+}
+
+function removeCatRow(i) {
+  configData.categories = [...document.querySelectorAll('#catEditor .cat-row')].map(r => ({
+    icon: r.querySelector('.cat-icon-input').value.trim(),
+    name: r.querySelector('.cat-name-input').value.trim()
+  }));
+  configData.categories.splice(i, 1);
+  renderCatEditor();
+}
+
+function collectCategories() {
+  return [...document.querySelectorAll('#catEditor .cat-row')].map(r => ({
+    icon: r.querySelector('.cat-icon-input').value.trim(),
+    name: r.querySelector('.cat-name-input').value.trim()
+  })).filter(c => c.name);
+}
+
+async function saveConfigSection(section) {
+  if (section==='profile') {
+    configData.botName           = document.getElementById('cfgBotName').value.trim();
+    configData.botSubtitle       = document.getElementById('cfgBotSubtitle').value.trim();
+    configData.botBio            = document.getElementById('cfgBotBio').value.trim();
+    configData.profileLocation   = document.getElementById('cfgProfileLocation').value.trim();
+    configData.profileExperience = document.getElementById('cfgProfileExperience').value.trim();
+    configData.profileLanguages  = document.getElementById('cfgProfileLanguages').value.trim();
+    configData.profileSpecialty  = document.getElementById('cfgProfileSpecialty').value.trim();
+  } else if (section==='welcome') {
+    configData.welcomeRU = document.getElementById('cfgWelcomeRU').value.trim();
+  } else if (section==='contacts') {
+    configData.contacts = {
+      whatsapp: document.getElementById('cfgWhatsapp').value.trim(),
+      telegram: document.getElementById('cfgTelegram').value.trim(),
+      site:     document.getElementById('cfgSite').value.trim(),
+      email:    document.getElementById('cfgEmail').value.trim()
+    };
+  } else if (section==='quickReplies') {
+    configData.quickReplies = [...document.querySelectorAll('#qrEditor .qr-row')].map(r => {
+      const inputs = r.querySelectorAll('input');
+      return { label: inputs[0].value.trim(), text: inputs[1].value.trim(), visible: r.dataset.visible !== 'false' };
+    }).filter(q => q.label || q.text);
+  } else if (section==='categories') {
+    configData.categories = collectCategories();
+  } else if (section==='apikeys') {
+    configData.apiKeyClient = document.getElementById('cfgKeyClient').value.trim() || '';
+    configData.apiKeyAdmin  = document.getElementById('cfgKeyAdmin').value.trim()  || '';
+    configData.modelClient  = document.getElementById('cfgModelClient').value;
+    configData.modelAdmin   = document.getElementById('cfgModelAdmin').value;
+  }
+  try {
+    const res = await fetch('/api/admin/config', { method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify(configData) });
+    if (res.status===401) { logout(); showToast('Сессия истекла — войдите снова','error'); return; }
+    if (!res.ok) { showToast('Ошибка при сохранении','error'); return; }
+    const saved = await res.json();
+    configData = {...configData,...saved};
+    if (section==='quickReplies') renderQrEditor();
+    if (section==='categories') { renderCatEditor(); buildCategorySelect(); }
+    if (section==='apikeys') populateConfigForm();
+    showToast('Сохранено ✓','success');
+  } catch { showToast('Сервер недоступен','error'); }
+}
+
+// ── Statistics ────────────────────────────────────────────────────────────────
+
+function renderStats() {
+  const ru = faqData.ru || [];
+  const s  = serverStats;
+  const total = s.total || 0, faq = s.faq || 0, ai = s.ai || 0;
+  const pctFaq = total ? Math.round(faq/total*100) : 0;
+  const noKeys = ru.filter(e=>!e.keys||!e.keys.length);
+  const noMenu = ru.filter(e=>!getMenuItems(e).length);
+
+  // Cards
+  document.getElementById('statsCards').innerHTML = `
+    <div class="stat-card gold">
+      <div class="stat-num">${ru.length}</div>
+      <div class="stat-label">FAQ-записей</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-num">${total}</div>
+      <div class="stat-label">Всего запросов</div>
+      <div class="stat-sub">к боту за всё время</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-num">${faq}</div>
+      <div class="stat-label">FAQ-ответов</div>
+      <div class="stat-sub">${pctFaq}% от всех запросов</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-num">${ai}</div>
+      <div class="stat-label">AI-ответов</div>
+      <div class="stat-sub">${total ? 100-pctFaq : 0}% от всех запросов</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-num">${noKeys.length}</div>
+      <div class="stat-label">Без ключевых слов</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-num">${noMenu.length}</div>
+      <div class="stat-label">Без кнопки меню</div>
+    </div>`;
+
+  // Topics
+  const topics = Object.entries(s.topics||{}).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxT = topics[0]?.[1]||1;
+  document.getElementById('statsTopics').innerHTML = topics.length
+    ? topics.map(([t,n])=>`<div class="bar-row"><span class="bar-label" title="${escHtml(t)}">${escHtml(t)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxT*100)}%"></div></div><span class="bar-count">${n}</span></div>`).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Нет данных — запросов ещё не было.</div>';
+
+  // Доля FAQ vs AI в баре
+  const docats = {};
+  for (const e of ru) for (const m of getMenuItems(e)) { const c=m.category||'—'; docats[c]=(docats[c]||0)+1; }
+  const catsArr = Object.entries(docats).sort((a,b)=>b[1]-a[1]);
+  const maxC = catsArr[0]?.[1]||1;
+  document.getElementById('statsCats').innerHTML = catsArr.length
+    ? catsArr.map(([c,n])=>`<div class="bar-row"><span class="bar-label" title="${escHtml(c)}">${escHtml(c)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxC*100)}%"></div></div><span class="bar-count">${n}</span></div>`).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Нет данных.</div>';
+
+  // Token usage
+  const costs = s.costs || {};
+  const tokens = s.tokens || {};
+  const rows = [['client','Клиентский чат'],['admin','Админ (ИИ-форматирование)']].map(([kt,label])=>{
+    const b = tokens[kt]||{in:0,out:0,model:''};
+    const cost = costs[kt]||'0.0000';
+    return `<tr><td>${label}</td><td style="color:var(--muted);font-size:12px">${b.model||'—'}</td><td>${(b.in||0).toLocaleString()}</td><td>${(b.out||0).toLocaleString()}</td><td><span class="cost-badge">$${cost}</span></td></tr>`;
+  }).join('');
+  document.getElementById('usageBody').innerHTML = rows;
+
+  // Health
+  const addH = (ok,txt) => `<div class="hi ${ok?'ok':'danger'}"><div class="hd"></div>${txt}</div>`;
+  const addW = (ok,txt) => `<div class="hi ${ok?'ok':'warn'}"><div class="hd"></div>${txt}</div>`;
+  document.getElementById('healthList').innerHTML = [
+    addH(ru.length>0,    `Всего FAQ-записей: ${ru.length}`),
+    addW(noKeys.length===0, `Без ключевых слов: ${noKeys.length}${noKeys.length?(' — '+noKeys.map(e=>e.topic).join(', '))  :''}`),
+    addW(noMenu.length===0, `Без кнопки меню: ${noMenu.length}${noMenu.length?(' — '+noMenu.map(e=>e.topic).slice(0,3).join(', ')+(noMenu.length>3?'…':'')):''}`)
+  ].join('');
+}
+
+async function resetStats() {
+  if (!confirm('Сбросить всю статистику запросов и токенов?')) return;
+  try {
+    const res = await fetch('/api/admin/stats', { method:'DELETE', headers:{'Authorization':`Bearer ${token}`} });
+    if (!res.ok) { showToast('Ошибка','error'); return; }
+    serverStats = await res.json();
+    renderStats(); showToast('Статистика сброшена','success');
+  } catch { showToast('Сервер недоступен','error'); }
+}
+
+// ── Toast / utils ─────────────────────────────────────────────────────────────
+
+let toastTimer;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent=msg; el.className=type; el.style.display='block';
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.style.display='none',3000);
+}
+function stripHtml(h) { return h.replace(/<[^>]+>/g,''); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

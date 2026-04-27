@@ -2,57 +2,380 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
-const API_KEY = process.env.ANTHROPIC_API_KEY || '';
+const API_KEY       = process.env.ANTHROPIC_API_KEY || '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const PORT = 3000;
 
-const server = http.createServer((req, res) => {
-  if (req.method === 'POST' && req.url === '/api/chat') {
+const FAQ_PATH    = path.join(__dirname, 'faq.json');
+const CONFIG_PATH = path.join(__dirname, 'config.json');
+const STATS_PATH  = path.join(__dirname, 'stats.json');
+
+const STATIC_TYPES = {
+  '.html': 'text/html; charset=utf-8', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.png': 'image/png', '.ico': 'image/x-icon', '.css': 'text/css',
+  '.js': 'application/javascript', '.json': 'application/json',
+};
+
+// Token prices per million tokens (USD)
+const TOKEN_PRICES = {
+  'claude-opus-4-7':           { in: 15.00, out: 75.00 },
+  'claude-sonnet-4-6':         { in:  3.00, out: 15.00 },
+  'claude-haiku-4-5-20251001': { in:  0.80, out:  4.00 },
+};
+
+// ── FAQ helpers ───────────────────────────────────────────────────────────────
+
+function loadFaq() {
+  try { return JSON.parse(fs.readFileSync(FAQ_PATH, 'utf8')); }
+  catch { return { ru: [] }; }
+}
+
+function saveFaq(data) {
+  fs.writeFileSync(FAQ_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// ── Config helpers (cached) ───────────────────────────────────────────────────
+
+let _configCache = null;
+
+function loadConfig() {
+  if (!_configCache) {
+    try { _configCache = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
+    catch { _configCache = {}; }
+  }
+  return _configCache;
+}
+
+function reloadConfig() {
+  _configCache = null;
+  return loadConfig();
+}
+
+function saveConfig(data) {
+  _configCache = data;
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// ── Stats helpers ─────────────────────────────────────────────────────────────
+
+function loadStats() {
+  try { return JSON.parse(fs.readFileSync(STATS_PATH, 'utf8')); }
+  catch {
+    return { total: 0, faq: 0, ai: 0, topics: {},
+             tokens: { client: { in: 0, out: 0, model: '' }, admin: { in: 0, out: 0, model: '' } } };
+  }
+}
+
+function saveStats(data) {
+  fs.writeFileSync(STATS_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function recordTokens(keyType, model, inputTokens, outputTokens) {
+  const s = loadStats();
+  const bucket = s.tokens[keyType] || (s.tokens[keyType] = { in: 0, out: 0 });
+  bucket.in  += inputTokens  || 0;
+  bucket.out += outputTokens || 0;
+  bucket.model = model || bucket.model;
+  saveStats(s);
+}
+
+// ── Key encryption (AES-256-CBC) ──────────────────────────────────────────────
+
+const CIPHER_ALGO = 'aes-256-cbc';
+
+function encryptValue(plaintext) {
+  if (!ADMIN_PASSWORD || !plaintext) return plaintext;
+  const salt = crypto.randomBytes(16);
+  const key  = crypto.scryptSync(ADMIN_PASSWORD, salt, 32);
+  const iv   = crypto.randomBytes(16);
+  const c    = crypto.createCipheriv(CIPHER_ALGO, key, iv);
+  const enc  = Buffer.concat([c.update(plaintext, 'utf8'), c.final()]);
+  return 'enc:' + salt.toString('hex') + ':' + iv.toString('hex') + ':' + enc.toString('hex');
+}
+
+function decryptValue(stored) {
+  if (!stored || !stored.startsWith('enc:')) return stored;
+  if (!ADMIN_PASSWORD) return '';
+  try {
+    const [saltHex, ivHex, encHex] = stored.slice(4).split(':');
+    const key = crypto.scryptSync(ADMIN_PASSWORD, Buffer.from(saltHex, 'hex'), 32);
+    const d   = crypto.createDecipheriv(CIPHER_ALGO, key, Buffer.from(ivHex, 'hex'));
+    return Buffer.concat([d.update(Buffer.from(encHex, 'hex')), d.final()]).toString('utf8');
+  } catch { return ''; }
+}
+
+function maskValue(stored) {
+  if (!stored) return null;
+  const plain = decryptValue(stored);
+  if (!plain) return '●●●●●●●●';
+  return plain.slice(0, 12) + '●'.repeat(6);
+}
+
+function getApiKey(type) {
+  const cfg = loadConfig();
+  const field    = type === 'admin' ? 'apiKeyAdmin' : 'apiKeyClient';
+  const fallback = type === 'admin' ? cfg.apiKeyClient : null;
+  for (const stored of [cfg[field], fallback]) {
+    if (stored) { const k = decryptValue(stored); if (k) return k; }
+  }
+  return API_KEY;
+}
+
+function getModel(type) {
+  const cfg = loadConfig();
+  return (type === 'admin' ? cfg.modelAdmin : cfg.modelClient) || 'claude-sonnet-4-6';
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+const sessions = new Set();
+function generateToken() { return crypto.randomBytes(32).toString('hex'); }
+function isAuthenticated(req) {
+  const auth = req.headers['authorization'] || '';
+  return auth.startsWith('Bearer ') && sessions.has(auth.slice(7));
+}
+
+// ── Request / response helpers ────────────────────────────────────────────────
+
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      const options = {
-        hostname: 'api.anthropic.com',
-        path: '/v1/messages',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-          'anthropic-version': '2023-06-01',
-        }
-      };
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
 
-      const apiReq = https.request(options, apiRes => {
-        let data = '';
-        apiRes.on('data', chunk => data += chunk);
-        apiRes.on('end', () => {
-          res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
-          res.end(data);
-        });
-      });
+async function readJsonBody(req) {
+  const raw = await readRawBody(req);
+  try { return JSON.parse(raw); } catch { return {}; }
+}
 
-      apiReq.on('error', err => {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
-      });
+function json(res, status, data) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
 
-      apiReq.write(body);
-      apiReq.end();
+function serveFile(res, filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = STATIC_TYPES[ext] || 'application/octet-stream';
+  fs.readFile(filePath, (err, data) => {
+    if (err) { res.writeHead(404); res.end('Not found'); return; }
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  });
+}
+
+// ── Claude proxy (tracks token usage) ────────────────────────────────────────
+
+function proxyToClaude(res, bodyStr, apiKey, keyType, model) {
+  const req2 = https.request({
+    hostname: 'api.anthropic.com', path: '/v1/messages', method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+  }, apiRes => {
+    let data = '';
+    apiRes.on('data', chunk => data += chunk);
+    apiRes.on('end', () => {
+      // Track token usage silently
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.usage) recordTokens(keyType, model, parsed.usage.input_tokens, parsed.usage.output_tokens);
+      } catch {}
+      res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
+      res.end(data);
     });
+  });
+  req2.on('error', err => {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  });
+  req2.write(bodyStr);
+  req2.end();
+}
+
+// ── Normalize FAQ entry (supports old + new menuItems format) ─────────────────
+
+function normalizeEntry(body, id) {
+  return {
+    id,
+    topic:     body.topic     || '',
+    keys:      body.keys      || [],
+    answer:    body.answer    || '',
+    menuItems: body.menuItems || [],
+  };
+}
+
+// ── Server ────────────────────────────────────────────────────────────────────
+
+const server = http.createServer(async (req, res) => {
+  const urlPath = req.url.split('?')[0];
+
+  // ── Client chat (uses client key) ─────────────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/chat') {
+    const rawBody = await readRawBody(req);
+    let bodyObj; try { bodyObj = JSON.parse(rawBody); } catch { bodyObj = {}; }
+    const model = bodyObj.model || getModel('client');
+    bodyObj.model = model;
+    proxyToClaude(res, JSON.stringify(bodyObj), getApiKey('client'), 'client', model);
     return;
   }
 
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
-    const filePath = path.join(__dirname, 'bot-tantsiura-ru.html');
-    fs.readFile(filePath, (err, data) => {
-      if (err) {
-        res.writeHead(404);
-        res.end('Not found');
-        return;
-      }
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(data);
-    });
+  // ── Admin chat (uses admin key, protected) ────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/admin/chat') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const rawBody = await readRawBody(req);
+    let bodyObj; try { bodyObj = JSON.parse(rawBody); } catch { bodyObj = {}; }
+    const model = bodyObj.model || getModel('admin');
+    bodyObj.model = model;
+    proxyToClaude(res, JSON.stringify(bodyObj), getApiKey('admin'), 'admin', model);
+    return;
+  }
+
+  // ── Stats (client posts faq/ai events) ───────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/stats') {
+    const body = await readJsonBody(req);
+    const s = loadStats();
+    s.total++;
+    if (body.type === 'faq') s.faq++;
+    else if (body.type === 'ai') s.ai++;
+    if (body.topic) s.topics[body.topic] = (s.topics[body.topic] || 0) + 1;
+    saveStats(s);
+    json(res, 200, { ok: true });
+    return;
+  }
+
+  // ── Admin: get stats ─────────────────────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/admin/stats') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const s = loadStats();
+    // Compute cost estimates
+    const costs = {};
+    for (const [kt, bucket] of Object.entries(s.tokens || {})) {
+      const prices = TOKEN_PRICES[bucket.model] || TOKEN_PRICES['claude-sonnet-4-6'];
+      costs[kt] = ((bucket.in / 1e6) * prices.in + (bucket.out / 1e6) * prices.out).toFixed(4);
+    }
+    json(res, 200, { ...s, costs });
+    return;
+  }
+
+  // ── Admin: reset stats ───────────────────────────────────────────────────
+  if (req.method === 'DELETE' && urlPath === '/api/admin/stats') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const fresh = { total: 0, faq: 0, ai: 0, topics: {},
+                    tokens: { client: { in: 0, out: 0, model: '' }, admin: { in: 0, out: 0, model: '' } } };
+    saveStats(fresh);
+    json(res, 200, { ...fresh, costs: { client: '0.0000', admin: '0.0000' } });
+    return;
+  }
+
+  // ── Config (public read — no keys) ────────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/config') {
+    const cfg = { ...loadConfig() };
+    delete cfg.apiKeyClient; delete cfg.apiKeyAdmin;
+    json(res, 200, cfg);
+    return;
+  }
+
+  // ── Config (admin read — masked keys) ─────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/admin/config') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const cfg = { ...loadConfig() };
+    cfg.apiKeyClientMasked = maskValue(cfg.apiKeyClient) || null;
+    cfg.apiKeyAdminMasked  = maskValue(cfg.apiKeyAdmin)  || null;
+    delete cfg.apiKeyClient; delete cfg.apiKeyAdmin;
+    json(res, 200, cfg);
+    return;
+  }
+
+  // ── Config (admin write) ───────────────────────────────────────────────────
+  if (req.method === 'PUT' && urlPath === '/api/admin/config') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const body = await readJsonBody(req);
+    const current = loadConfig();
+    const isMasked = v => !v || v.includes('●') || v.startsWith('enc:');
+    body.apiKeyClient = isMasked(body.apiKeyClient) ? (current.apiKeyClient || '') : encryptValue(body.apiKeyClient.trim());
+    body.apiKeyAdmin  = isMasked(body.apiKeyAdmin)  ? (current.apiKeyAdmin  || '') : encryptValue(body.apiKeyAdmin.trim());
+    saveConfig(body);
+    const resp = { ...body };
+    resp.apiKeyClientMasked = maskValue(resp.apiKeyClient) || null;
+    resp.apiKeyAdminMasked  = maskValue(resp.apiKeyAdmin)  || null;
+    delete resp.apiKeyClient; delete resp.apiKeyAdmin;
+    json(res, 200, resp);
+    return;
+  }
+
+  // ── FAQ (public read) ──────────────────────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/faq') {
+    json(res, 200, loadFaq());
+    return;
+  }
+
+  // ── Admin login ────────────────────────────────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/admin/login') {
+    if (!ADMIN_PASSWORD) { json(res, 503, { error: 'ADMIN_PASSWORD nicht gesetzt' }); return; }
+    const body = await readJsonBody(req);
+    if (body.password !== ADMIN_PASSWORD) { json(res, 401, { error: 'Falsches Passwort' }); return; }
+    const token = generateToken();
+    sessions.add(token);
+    json(res, 200, { token });
+    return;
+  }
+
+  // ── Admin FAQ routes (protected) ───────────────────────────────────────────
+  if (urlPath.startsWith('/api/admin/faq')) {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+
+    const parts = urlPath.split('/');
+    const lang = parts[4];
+    const id   = parts[5] ? parseInt(parts[5]) : null;
+
+    if (lang !== 'ru') { json(res, 400, { error: 'Ungültige Sprache' }); return; }
+
+    if (req.method === 'POST' && id === null) {
+      const body = await readJsonBody(req);
+      const faq  = loadFaq();
+      const maxId = Math.max(0, ...(faq.ru || []).map(e => e.id));
+      const entry = normalizeEntry(body, maxId + 1);
+      faq.ru = [...(faq.ru || []), entry];
+      saveFaq(faq);
+      json(res, 201, entry);
+      return;
+    }
+
+    if (req.method === 'PUT' && id !== null) {
+      const body = await readJsonBody(req);
+      const faq  = loadFaq();
+      const idx  = (faq.ru || []).findIndex(e => e.id === id);
+      if (idx === -1) { json(res, 404, { error: 'Nicht gefunden' }); return; }
+      faq.ru[idx] = normalizeEntry(body, id);
+      saveFaq(faq);
+      json(res, 200, faq.ru[idx]);
+      return;
+    }
+
+    if (req.method === 'DELETE' && id !== null) {
+      const faq    = loadFaq();
+      const before = (faq.ru || []).length;
+      faq.ru = (faq.ru || []).filter(e => e.id !== id);
+      if (faq.ru.length === before) { json(res, 404, { error: 'Nicht gefunden' }); return; }
+      saveFaq(faq);
+      json(res, 200, { ok: true });
+      return;
+    }
+
+    json(res, 405, { error: 'Methode nicht erlaubt' });
+    return;
+  }
+
+  // ── Static files ───────────────────────────────────────────────────────────
+  if (req.method === 'GET') {
+    if (urlPath === '/' || urlPath === '/index.html') { serveFile(res, path.join(__dirname, 'index.html')); return; }
+    if (urlPath === '/admin' || urlPath === '/admin.html') { serveFile(res, path.join(__dirname, 'admin.html')); return; }
+    const filePath = path.resolve(__dirname, urlPath.slice(1));
+    if (!filePath.startsWith(__dirname)) { res.writeHead(403); res.end('Forbidden'); return; }
+    serveFile(res, filePath);
     return;
   }
 
@@ -60,15 +383,19 @@ const server = http.createServer((req, res) => {
   res.end('Not found');
 });
 
-if (!API_KEY) {
-  console.error('FEHLER: ANTHROPIC_API_KEY ist nicht gesetzt.');
-  console.error('Starten Sie den Server so:');
-  console.error('  ANTHROPIC_API_KEY=sk-ant-... node server.js  (Mac/Linux)');
-  console.error('  set ANTHROPIC_API_KEY=sk-ant-... && node server.js  (Windows CMD)');
-  console.error('  $env:ANTHROPIC_API_KEY="sk-ant-..." ; node server.js  (Windows PowerShell)');
-  process.exit(1);
+// ── Startup ────────────────────────────────────────────────────────────────────
+
+const _startCfg = loadConfig();
+if (!API_KEY && !_startCfg.apiKeyClient && !_startCfg.apiKeyAdmin) {
+  console.warn('HINWEIS: Kein API-Key gesetzt. Bitte im Admin-Panel hinterlegen.');
+} else if (!API_KEY) {
+  console.log('API-Key wird aus der Konfiguration geladen.');
+}
+if (!ADMIN_PASSWORD) {
+  console.warn('HINWEIS: ADMIN_PASSWORD fehlt — Admin-Panel deaktiviert.');
 }
 
 server.listen(PORT, () => {
   console.log(`Server läuft auf http://localhost:${PORT}`);
+  if (ADMIN_PASSWORD) console.log(`Admin-Panel: http://localhost:${PORT}/admin`);
 });
