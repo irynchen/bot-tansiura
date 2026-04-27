@@ -768,7 +768,12 @@ function copyEmail() {
 // ── Инициализация ─────────────────────────────────────────────────────────────
 document.getElementById('welcomeTime').textContent = getTime();
 updateStatsUI();
-if (window.Telegram?.WebApp) { Telegram.WebApp.expand(); Telegram.WebApp.requestFullscreen?.(); }
+if (window.Telegram?.WebApp) {
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+  Telegram.WebApp.requestFullscreen?.();
+  setTimeout(() => { Telegram.WebApp.expand(); Telegram.WebApp.requestFullscreen?.(); }, 300);
+}
 
 let configProfile = {};
 
