@@ -483,11 +483,10 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
           <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBr()">↵ Перенос</button>
           <div class="fmt-divider"></div>
           <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtRemove()">✕ Убрать формат</button>
-          <button class="fmt-btn ai-btn" id="aiGenBtn" onclick="aiGenerate()">✨ Сгенерировать</button>
-          <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Улучшить</button>
+          <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Генерировать с ИИ</button>
         </div>
         <div class="editor" id="mAnswer" contenteditable="true" onkeydown="editorKeydown(event)" onpaste="editorPaste(event)"></div>
-        <div class="editor-hint">Введите текст → <strong>✨ Улучшить</strong> отформатирует. Или: заполните тему и ключевые слова → <strong>✨ Сгенерировать</strong> напишет ответ.</div>
+        <div class="editor-hint">Если редактор пустой — ИИ сгенерирует ответ по теме и ключевым словам. Если есть текст — улучшит и отформатирует его.</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -865,35 +864,18 @@ const AI_SYS = `Ты помощник налогового консультан�
 HTML: термины/формуляры → <span class="term">слово</span>. Списки: 🔹 пункт, разделены через <br>. Разделы через <br><br>. Без <ul>/<li>. В конце → <strong>совет или призыв</strong>.
 keywords: 5–8 поисковых слов (русский+испанский), строчными.`;
 
-async function aiGenerate() {
-  const topic = document.getElementById('mTopic').value.trim();
-  const keys  = document.getElementById('mKeys').value.trim();
-  if (!topic) { showToast('Сначала заполните тему','error'); return; }
-  const btn = document.getElementById('aiGenBtn');
-  btn.textContent = '⏳ Генерирую…'; btn.disabled = true;
-  const prompt = `Тема FAQ: "${topic}"${keys ? `\nКлючевые слова: ${keys}` : ''}\n\nНапиши полный ответ для FAQ-бота.`;
-  try {
-    const res  = await fetch('/api/admin/chat', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:AI_SYS,messages:[{role:'user',content:prompt}]}) });
-    const data = await res.json();
-    if (!res.ok) { showToast('API-ошибка: '+(data.error?.message||'').slice(0,80),'error'); return; }
-    const raw = data.content?.[0]?.text?.trim() || '';
-    let parsed;
-    try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim()); }
-    catch { document.getElementById('mAnswer').innerHTML = raw; showToast('Сгенерировано ✓','success'); btn.textContent='✨ Сгенерировать'; btn.disabled=false; return; }
-    if (parsed.html) document.getElementById('mAnswer').innerHTML = parsed.html;
-    if (parsed.keywords?.length) document.getElementById('mKeys').value = parsed.keywords.join(', ');
-    showToast('Сгенерировано ✓','success');
-  } catch(err) { showToast('Сетевая ошибка: '+err.message,'error'); }
-  btn.textContent='✨ Сгенерировать'; btn.disabled=false;
-}
-
 async function aiFormat() {
-  const editor = document.getElementById('mAnswer');
-  const text   = editor.innerText.trim();
-  if (!text) { showToast('Сначала введите текст для улучшения','error'); return; }
+  const editor  = document.getElementById('mAnswer');
+  const text    = editor.innerText.trim();
+  const topic   = document.getElementById('mTopic').value.trim();
+  const keys    = document.getElementById('mKeys').value.trim();
+  const isEmpty = !text;
+  if (isEmpty && !topic) { showToast('Заполните тему или введите текст','error'); return; }
   const btn = document.getElementById('aiFmtBtn');
-  btn.textContent = '⏳ Улучшаю…'; btn.disabled = true;
-  const prompt = `Улучши и отформатируй этот FAQ-ответ:\n\n${text}`;
+  btn.textContent = '⏳ Генерирую…'; btn.disabled = true;
+  const prompt = isEmpty
+    ? `Тема FAQ: "${topic}"${keys ? `\nКлючевые слова: ${keys}` : ''}\n\nНапиши полный ответ для FAQ-бота.`
+    : `Улучши и отформатируй этот FAQ-ответ:\n\n${text}`;
   try {
     const res  = await fetch('/api/admin/chat', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:AI_SYS,messages:[{role:'user',content:prompt}]}) });
     const data = await res.json();
@@ -901,12 +883,12 @@ async function aiFormat() {
     const raw = data.content?.[0]?.text?.trim() || '';
     let parsed;
     try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim()); }
-    catch { editor.innerHTML=raw; showToast('Улучшено ✓','success'); btn.textContent='✨ Улучшить'; btn.disabled=false; return; }
+    catch { editor.innerHTML = raw; showToast('Готово ✓','success'); btn.textContent='✨ Генерировать с ИИ'; btn.disabled=false; return; }
     if (parsed.html) editor.innerHTML = parsed.html;
-    if (parsed.keywords?.length) { document.getElementById('mKeys').value=parsed.keywords.join(', '); showToast('Улучшено ✓ — ключевые слова обновлены','success'); }
-    else showToast('Улучшено ✓','success');
+    if (parsed.keywords?.length) document.getElementById('mKeys').value = parsed.keywords.join(', ');
+    showToast('Готово ✓','success');
   } catch(err) { showToast('Сетевая ошибка: '+err.message,'error'); }
-  btn.textContent='✨ Улучшить'; btn.disabled=false;
+  btn.textContent='✨ Генерировать с ИИ'; btn.disabled=false;
 }
 
 // ── Config form ───────────────────────────────────────────────────────────────
