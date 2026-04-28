@@ -219,6 +219,37 @@
   .disclaimer { text-align:center; font-size:10px; color:var(--muted); padding:6px 16px 0; opacity:0.7; }
   .term { color: var(--gold-light); font-weight: 500; }
 
+  /* Profile modal */
+  .profile-modal {
+    display: none; position: fixed; inset: 0; z-index: 110;
+    background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .profile-modal.open { display: flex; }
+  .profile-box {
+    background: var(--dark2); border: 1px solid var(--border);
+    border-radius: 24px; padding: 28px 24px 24px; max-width: 360px; width: 100%;
+    position: relative; text-align: center;
+  }
+  .profile-close-btn {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: 20px; line-height: 1;
+  }
+  .profile-logo-big {
+    width: 90px; height: 90px; border-radius: 18px; overflow: hidden;
+    background: #F5F0E8; margin: 0 auto 14px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .profile-logo-big img { width: 100%; height: 100%; object-fit: contain; }
+  .profile-modal-name {
+    font-family: 'Playfair Display', serif; font-size: 18px;
+    color: var(--gold-light); font-weight: 600; margin-bottom: 4px;
+  }
+  .profile-modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .profile-modal-info { font-size: 13px; color: var(--text); line-height: 1.8; margin-bottom: 16px; }
+  .profile-modal-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
   /* Stats panel */
   .stats-panel {
     display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -289,7 +320,7 @@
     <div class="date-divider" id="dateDivider">Сегодня</div>
     <div class="msg bot">
       <div class="bubble" id="welcomeMsg">
-        Привет! Я <strong>Александр Танцюра</strong>, бухгалтер в Аликанте. Здесь мой помощник ответит на самые частые вопросы — быстро и бесплатно. Для личной консультации — пишите мне напрямую.
+        Привет! 👋 Я помощник <strong>Александра Танцюры</strong> — налогового консультанта в Аликанте 🇪🇸<br><br>Задайте вопрос по налогам в Испании — отвечу сразу. Нажмите на фото вверху, чтобы узнать об Александре подробнее.
       </div>
       <div class="msg-footer">
         <span class="msg-time" id="welcomeTime"></span>
@@ -321,6 +352,27 @@
     </button>
   </div>
   <div class="disclaimer" id="disclaimer">Ответы носят информационный характер. По конкретным ситуациям — обращайтесь к Александру лично.</div>
+</div>
+
+<!-- Profile Modal -->
+<div class="profile-modal" id="profileModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="profile-box">
+    <button class="profile-close-btn" onclick="document.getElementById('profileModal').classList.remove('open')">✕</button>
+    <div class="profile-logo-big"><img src="/at-logo.png" alt="AT"></div>
+    <div class="profile-modal-name">Александр Танцюра</div>
+    <div class="profile-modal-sub">Налоговый консультант · Аликанте 🇪🇸</div>
+    <div class="profile-modal-info">
+      📍 Аликанте, Испания<br>
+      ⭐ 10 лет опыта<br>
+      🗣 Русский, украинский, испанский<br>
+      📋 Налоги и бухгалтерия в Испании
+    </div>
+    <div class="profile-modal-btns">
+      <a class="contact-btn whatsapp" href="https://wa.me/34623392451" target="_blank" style="font-size:12px">WhatsApp</a>
+      <a class="contact-btn telegram" href="https://t.me/AlexanderTantsiura" target="_blank" style="font-size:12px">Telegram</a>
+      <a class="contact-btn site" href="https://nalogspain.com/" target="_blank" style="font-size:12px">nalogspain.com</a>
+    </div>
+  </div>
 </div>
 
 <!-- Stats Panel (только для Саши — открывается кликом на фото) -->
@@ -473,36 +525,7 @@ function showCategories() {
 }
 
 function showProfile() {
-  const qr = document.getElementById('quickReplies');
-  const isRu = currentLang === 'ru';
-  const backLabel = isRu ? '← Все темы' : '← Todos los temas';
-  const back = document.createElement('button');
-  back.className = 'back-btn';
-  back.textContent = backLabel;
-  back.onclick = showCategories;
-  const p = configProfile;
-  const waHref  = p.whatsapp ? `https://wa.me/${p.whatsapp}` : '#';
-  const tgHref  = p.telegram ? `https://t.me/${p.telegram}` : '#';
-  const siteLabel = p.site ? p.site.replace(/^https?:\/\//, '').replace(/\/$/, '') : '';
-  const card = document.createElement('div');
-  card.className = 'profile-card';
-  card.innerHTML = `
-    <img class="profile-photo" src="/sascha.jpg" alt="${p.name}">
-    <div class="profile-info">
-      <div class="profile-name">${p.name}</div>
-      ${p.location   ? `<div style="color:var(--muted)">📍 ${p.location}</div>` : ''}
-      ${p.experience ? `<div style="color:var(--muted)">⭐ ${p.experience}</div>` : ''}
-      ${p.languages ? `<div style="color:var(--muted)">🗣 ${p.languages}</div>` : ''}
-      ${p.specialty ? `<div style="color:var(--muted)">📋 ${p.specialty}</div>` : ''}
-      <div class="profile-contacts">
-        ${p.whatsapp ? `<a class="contact-btn whatsapp" href="${waHref}" target="_blank" style="font-size:11px;padding:5px 10px">WhatsApp</a>` : ''}
-        ${p.telegram ? `<a class="contact-btn telegram" href="${tgHref}" target="_blank" style="font-size:11px;padding:5px 10px">Telegram</a>` : ''}
-        ${p.site     ? `<a class="contact-btn site" href="${p.site}" target="_blank" style="font-size:11px;padding:5px 10px">${siteLabel}</a>` : ''}
-      </div>
-    </div>`;
-  qr.innerHTML = '';
-  qr.appendChild(back);
-  qr.appendChild(card);
+  document.getElementById('profileModal').classList.add('open');
 }
 
 function showSubcategories(catIndex) {
