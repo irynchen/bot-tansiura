@@ -137,13 +137,14 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 
 /* Rich text editor */
 .editor-section label { display:block; font-size:13px; font-weight:500; margin-bottom:8px; }
-.editor-toolbar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:8px 10px; background:var(--bg); border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; }
+.editor-toolbar { display:flex; flex-direction:column; gap:6px; padding:8px 10px; background:var(--bg); border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; }
+.fmt-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .fmt-btn { padding:5px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); font-size:12px; font-weight:500; cursor:pointer; color:var(--text); transition:all .15s; white-space:nowrap; }
 .fmt-btn:hover { background:var(--border); }
 .fmt-btn.term-btn { color:var(--gold); border-color:rgba(201,168,76,.4); }
 .fmt-btn.term-btn:hover { background:rgba(201,168,76,.1); }
 .fmt-divider { width:1px; height:20px; background:var(--border); margin:0 2px; }
-.fmt-btn.ai-btn { background:var(--purple-bg); color:var(--purple); border-color:var(--purple-border); margin-left:auto; }
+.fmt-btn.ai-btn { background:var(--purple-bg); color:var(--purple); border-color:var(--purple-border); width:100%; justify-content:center; display:flex; align-items:center; gap:6px; }
 .fmt-btn.ai-btn:hover { background:#ede9fe; }
 .fmt-btn.ai-btn:disabled { opacity:.5; cursor:not-allowed; }
 .editor { min-height:160px; max-height:300px; overflow-y:auto; padding:12px 14px; border:1px solid var(--border); border-radius:0 0 8px 8px; font-size:14px; line-height:1.7; outline:none; transition:border-color .15s; }
@@ -479,13 +480,15 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       <div class="editor-section">
         <label>Ответ</label>
         <div class="editor-toolbar">
-          <button class="fmt-btn term-btn" onmousedown="event.preventDefault()" onclick="fmtTerm()">● Термин</button>
-          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBold()"><strong>Ж</strong></button>
-          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtList()">🔹 Список</button>
-          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBr()">↵ Перенос</button>
-          <div class="fmt-divider"></div>
-          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtRemove()">✕ Убрать формат</button>
-          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="copyAnswer(this)" title="Inhalt kopieren">📋 Копировать</button>
+          <div class="fmt-row">
+            <button class="fmt-btn term-btn" onmousedown="event.preventDefault()" onclick="fmtTerm()">● Термин</button>
+            <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBold()"><strong>Ж</strong></button>
+            <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtList()">🔹 Список</button>
+            <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBr()">↵ Перенос</button>
+            <div class="fmt-divider"></div>
+            <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtRemove()">✕ Убрать формат</button>
+            <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="copyAnswer(this)" title="Inhalt kopieren">📋 Копировать</button>
+          </div>
           <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Генерировать с ИИ</button>
         </div>
         <div class="editor" id="mAnswer" contenteditable="true" onkeydown="editorKeydown(event)" onpaste="editorPaste(event)"></div>
