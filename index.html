@@ -302,9 +302,7 @@
   <div class="chat" id="chat">
     <div class="date-divider" id="dateDivider">Сегодня</div>
     <div class="msg bot">
-      <div class="bubble" id="welcomeMsg">
-        Привет! 👋 Я помощник <strong>Александра Танцюры</strong> — налогового консультанта в Аликанте 🇪🇸<br><br>Задайте вопрос по налогам в Испании — отвечу сразу. Нажмите на фото вверху, чтобы узнать об Александре подробнее.
-      </div>
+      <div class="bubble" id="welcomeMsg"></div>
       <div class="msg-footer">
         <span class="msg-time" id="welcomeTime"></span>
       </div>
@@ -397,7 +395,7 @@ let configCategories = [];
 
 const TEXTS = {
   ru: {
-    welcome: 'Привет! 👋 Я помощник <strong>Александра Танцюры</strong> — налогового консультанта в Аликанте 🇪🇸<br><br>Задайте вопрос по налогам в Испании — отвечу сразу. Нажмите на фото вверху, чтобы узнать об Александре подробнее.',
+    welcome: '',
     placeholder: 'Напишите ваш вопрос...',
     disclaimer: 'Ответы носят информационный характер. По конкретным ситуациям — обращайтесь к Александру лично.',
     today: 'Сегодня',
@@ -405,7 +403,7 @@ const TEXTS = {
     complex: 'Этот вопрос лучше обсудить лично с Александром — он разберёт вашу ситуацию подробно.<br><br>📱 <a href="https://wa.me/34623392451" style="color:var(--gold-light)">Написать в WhatsApp</a> · <a href="https://t.me/AlexanderTantsiura" style="color:var(--gold-light)">Telegram</a>',
   },
   es: {
-    welcome: '¡Hola! 👋 Soy el asistente virtual de <strong>Aleksandr Tantsiura</strong>, asesor fiscal en Alicante.<br><br>Respondo preguntas frecuentes sobre impuestos en España 🇪🇸<br>Para consulta personal — usa los botones de arriba.',
+    welcome: '',
     placeholder: 'Escribe tu pregunta...',
     disclaimer: 'Las respuestas son orientativas. Para casos específicos, contacta directamente con Aleksandr.',
     today: 'Hoy',
@@ -770,8 +768,8 @@ function applyConfig(cfg) {
   const qs = (sel) => document.querySelector(sel);
   if (cfg.botName    && qs('.header-name')) qs('.header-name').textContent = cfg.botName;
   if (cfg.botSubtitle && qs('.header-sub')) qs('.header-sub').textContent = cfg.botSubtitle;
-  if (cfg.welcomeRU)  TEXTS.ru.welcome = cfg.welcomeRU;
-  if (cfg.welcomeES)  TEXTS.es.welcome = cfg.welcomeES;
+  if (cfg.welcomeRU != null)  TEXTS.ru.welcome = cfg.welcomeRU;
+  if (cfg.welcomeES != null)  TEXTS.es.welcome = cfg.welcomeES;
   if (cfg.contacts) {
     const c = cfg.contacts;
     if (c.email) window._contactEmail = c.email;
