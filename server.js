@@ -411,7 +411,7 @@ const server = http.createServer(async (req, res) => {
       const plain = best.answer
         .replace(/<br\s*\/?>/gi, '\n').replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
         .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1').replace(/<[^>]+>/g, '').trim();
-      await tg('sendMessage', { chat_id: chatId, text: plain, parse_mode: 'Markdown',
+      await tg('sendMessage', { chat_id: chatId, text: plain + '\n\n✅ _Проверено Александром Танцюрой_', parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
       });
       const sf = loadStats(); sf.total++; sf.faq++;
@@ -437,7 +437,7 @@ const server = http.createServer(async (req, res) => {
       r.on('error', reject); r.write(aiBody); r.end();
     });
     const reply = aiRes.content?.[0]?.text || 'Не удалось получить ответ.';
-    await tg('sendMessage', { chat_id: chatId, text: reply,
+    await tg('sendMessage', { chat_id: chatId, text: reply + '\n\n🤖 _Авто-ответ_',
       reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
     });
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
