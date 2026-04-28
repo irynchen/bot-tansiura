@@ -402,8 +402,17 @@ const server = http.createServer(async (req, res) => {
 
     if (isGreeting) {
       await tg('sendMessage', { chat_id: chatId,
-        text: '👋 Привет! Я помогаю разобраться с налогами в Испании — задайте любой вопрос.\n\nНапример:\n• Как зарегистрироваться как autónomo?\n• Какие налоги платит фрилансер?\n• Что такое декларация Renta?\n\nИли откройте полную версию с подробными статьями:',
-        reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
+        text: '👋 Привет! Я помогаю разобраться с налогами в Испании.\n\nВыберите тему или задайте свой вопрос:',
+        reply_markup: {
+          keyboard: [
+            [{ text: 'Как зарегистрироваться как autónomo?' }],
+            [{ text: 'Какие налоги платит фрилансер?' }],
+            [{ text: 'Что такое декларация Renta?' }],
+            [{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
       });
       return;
     }
