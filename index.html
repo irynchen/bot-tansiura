@@ -296,9 +296,6 @@
     <div class="logo-wrap" onclick="showProfile()" ondblclick="document.querySelector('.stats-panel').classList.toggle('open')" title="Обо мне">
       <img src="/at-logo.png" alt="AT">
     </div>
-    <div class="header-name">Александр Танцюра</div>
-    <div class="header-sub">Налоговый консультант · Аликанте 🇪🇸</div>
-    <div class="status-row"><div class="status-dot"></div><span class="status-text">онлайн</span></div>
   </div>
 
   <!-- Chat -->
@@ -543,7 +540,7 @@ async function sendFaqById(id) {
   showTyping();
   await new Promise(r => setTimeout(r, 600));
   hideTyping();
-  appendMessage(entry.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром Танцюрой' });
+  appendMessage(entry.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром' });
   trackQuestion(entry.topic, 'faq');
   saveHistory('bot', entry.answer);
   isLoading = false;
@@ -704,7 +701,7 @@ async function sendMessage() {
     showTyping();
     await new Promise(r => setTimeout(r, 700));
     hideTyping();
-    appendMessage(faqItem.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром Танцюрой' });
+    appendMessage(faqItem.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром' });
     trackQuestion(faqItem.topic, 'faq');
     saveHistory('bot', faqItem.answer);
     isLoading = false;
