@@ -165,7 +165,9 @@ function serveFile(res, filePath) {
   const contentType = STATIC_TYPES[ext] || 'application/octet-stream';
   fs.readFile(filePath, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': contentType });
+    const headers = { 'Content-Type': contentType };
+    if (ext === '.html') headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    res.writeHead(200, headers);
     res.end(data);
   });
 }
