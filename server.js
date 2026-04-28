@@ -393,9 +393,12 @@ const server = http.createServer(async (req, res) => {
       r.on('error', reject); r.write(data); r.end();
     });
 
-    if (text === '/start') {
+    const greetings = ['привет', 'здравствуй', 'добрый', 'hallo', 'hello', 'hi', 'хай', 'салют', 'buenos'];
+    const isGreeting = text === '/start' || greetings.some(g => lower.startsWith(g));
+
+    if (isGreeting) {
       await tg('sendMessage', { chat_id: chatId,
-        text: '👋 Привет!\n\nЯ виртуальный помощник Александра Танцюры — налогового консультанта в Аликанте 🇪🇸\n\nМожете задать вопрос прямо здесь или открыть полную версию:',
+        text: '👋 Привет! Я помогаю разобраться с налогами в Испании — задайте любой вопрос.\n\nНапример:\n• Как зарегистрироваться как autónomo?\n• Какие налоги платит фрилансер?\n• Что такое декларация Renta?\n\nИли откройте полную версию с подробными статьями:',
         reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
       });
       return;
@@ -429,7 +432,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     await tg('sendChatAction', { chat_id: chatId, action: 'typing' });
-    const sysPrompt = 'Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, кратко (макс 4 предложения). Испанские термины объясняй в скобках. Не придумывай цифры. Для личных вопросов — предлагай написать @AlexanderTantsiura. НЕ используй Markdown-символы (* # _ `).';
+    const sysPrompt = 'Ты дружелюбный помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ `). Не предлагай сразу писать лично — сначала помоги с вопросом.';
     const aiBody = JSON.stringify({ model: getModel('client'), max_tokens: 600, system: sysPrompt, messages: [{ role:'user', content: text }] });
     const aiRes  = await new Promise((resolve, reject) => {
       const r = https.request({ hostname:'api.anthropic.com', path:'/v1/messages', method:'POST',
