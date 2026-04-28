@@ -557,7 +557,7 @@ async function sendFaqById(id) {
   showTyping();
   await new Promise(r => setTimeout(r, 600));
   hideTyping();
-  appendMessage(entry.answer, 'bot', { cls: 'badge-faq', label: '⚡ FAQ' });
+  appendMessage(entry.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром Танцюрой' });
   trackQuestion(entry.topic, 'faq');
   saveHistory('bot', entry.answer);
   isLoading = false;
@@ -718,7 +718,7 @@ async function sendMessage() {
     showTyping();
     await new Promise(r => setTimeout(r, 700));
     hideTyping();
-    appendMessage(faqItem.answer, 'bot', { cls: 'badge-faq', label: '⚡ FAQ' });
+    appendMessage(faqItem.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром Танцюрой' });
     trackQuestion(faqItem.topic, 'faq');
     saveHistory('bot', faqItem.answer);
     isLoading = false;
@@ -743,7 +743,7 @@ async function sendMessage() {
     const data = await response.json();
     hideTyping();
     const reply = mdToHtml(data.content?.[0]?.text || TEXTS[currentLang].error);
-    appendMessage(reply, 'bot', { cls: 'badge-ai', label: '✨ AI' });
+    appendMessage(reply, 'bot', { cls: 'badge-ai', label: '🤖 Авто-ответ' });
     trackQuestion('Другое', 'ai');
     saveHistory('bot', reply);
   } catch (err) {
