@@ -402,7 +402,7 @@ const server = http.createServer(async (req, res) => {
 
     if (isGreeting) {
       await tg('sendMessage', { chat_id: chatId,
-        text: '👋 Привет! Я помогаю разобраться с налогами в Испании.\n\nВыберите тему или задайте свой вопрос:',
+        text: '👋 Привет! Я помощник налогового консультанта Александра Танцюры из Аликанте. Рад помочь разобраться в испанских налогах и финансовых вопросах. Задавайте ваш вопрос — постараюсь объяснить всё просто и понятно!\n\nМожете задать вопрос прямо здесь или выбрать тему ниже 👇',
         reply_markup: {
           keyboard: [
             [{ text: 'Как зарегистрироваться как autónomo?' }],
@@ -451,7 +451,7 @@ const server = http.createServer(async (req, res) => {
       r.on('error', reject); r.write(aiBody); r.end();
     });
     const reply = aiRes.content?.[0]?.text || 'Не удалось получить ответ.';
-    await tg('sendMessage', { chat_id: chatId, text: reply + '\n\n🤖 _Авто-ответ_',
+    await tg('sendMessage', { chat_id: chatId, text: reply + '\n\n💬 Авто-ответ',
       reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
     });
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
