@@ -393,6 +393,10 @@ const server = http.createServer(async (req, res) => {
       r.on('error', reject); r.write(data); r.end();
     });
 
+    // FAQ search
+    const faqList = (loadFaq().ru || []);
+    const lower = text.toLowerCase();
+
     const greetings = ['привет', 'здравствуй', 'добрый', 'hallo', 'hello', 'hi', 'хай', 'салют', 'buenos'];
     const isGreeting = text === '/start' || greetings.some(g => lower.startsWith(g));
 
@@ -403,10 +407,6 @@ const server = http.createServer(async (req, res) => {
       });
       return;
     }
-
-    // FAQ search
-    const faqList = (loadFaq().ru || []);
-    const lower = text.toLowerCase();
     let best = null, bestScore = 0;
     for (const item of faqList) {
       const score = (item.keys || []).filter(k => lower.includes(k.toLowerCase())).length;
