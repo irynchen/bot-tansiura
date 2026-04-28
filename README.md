@@ -8,14 +8,16 @@ Beantwortet Fragen zu Steuern und Buchhaltung in Spanien auf Russisch und Spanis
 ## Architektur
 
 ```
-Browser → https://nalog.goeloria.com
-              ↓
-           nginx (Port 443, SSL via Let's Encrypt)
-              ↓                    ↓
-        /           →   /var/www/nalog/index.html  (Bot-UI)
-        /api/chat   →   localhost:3000  (Node.js Proxy)
-              ↓
-        api.anthropic.com  (Claude AI)
+Browser / Telegram
+        ↓
+   nginx (Port 443, SSL via Let's Encrypt)
+        ↓                    ↓
+  /           →   /var/www/nalog/index.html    (Mini App)
+  /admin.html →   /var/www/nalog/admin.html    (Admin-Portal)
+  /api/*      →   localhost:3000               (Node.js Server)
+  /webhook    →   localhost:3000               (Telegram Webhook)
+        ↓
+  api.anthropic.com  (Claude AI)
 ```
 
 **Server:** STRATO VPS Linux VC2-4, Ubuntu 22.04  
@@ -29,10 +31,39 @@ Browser → https://nalog.goeloria.com
 
 | Datei | Beschreibung |
 |---|---|
-| `bot-tantsiura-ru.html` | Bot-UI (wird als `index.html` auf dem Server gespeichert) |
-| `server.js` | Node.js Proxy-Server — leitet `/api/chat` an Claude API weiter |
-| `ecosystem.config.js` | PM2-Konfiguration mit API-Key (nur auf dem Server, nicht im Git!) |
-| `.gitignore` | Schützt `key.txt` und `ecosystem.config.js` vor Git |
+| `index.html` | Telegram Mini App — Chat-Interface |
+| `admin.html` | Admin-Portal — FAQ, Konfiguration, Statistik |
+| `server.js` | Node.js Server — Telegram Webhook, Claude API, Admin-API |
+| `Logo_Bot.png` | AT-Logo für Mini App (auf Server als `/at-logo.png` gespeichert) |
+| `logo_portal.png` | Logo für Admin-Portal |
+| `ecosystem.config.js` | PM2-Konfiguration mit API-Keys (nur auf dem Server, nicht im Git!) |
+| `.gitignore` | Schützt `ecosystem.config.js`, `.env`, `stats.json` vor Git |
+
+---
+
+## Telegram Bot
+
+- **Bot:** @TantsiuraTax_Bot  
+- **Token:** in `ecosystem.config.js` als `TELEGRAM_BOT_TOKEN`  
+- **Webhook:** `https://nalog.goeloria.com/webhook`  
+- **Mini App:** `https://nalog.goeloria.com`  
+- Begrüßung bei `/start`: 3 tippbare Beispielfragen + Button zum Öffnen der Mini App  
+- FAQ-Antworten tragen Badge: `✅ Проверено Александром`  
+- KI-Antworten tragen Badge: `💬 Авто-ответ`
+
+---
+
+## Admin-Portal
+
+**URL:** https://nalog.goeloria.com/admin.html  
+**Passwort:** in `ecosystem.config.js` als `ADMIN_PASSWORD`
+
+Funktionen:
+- **FAQ-Artikel** — erstellen, bearbeiten, löschen; KI-Generierung von Antworten
+- **Настройки** — Begrüßungstext, Kontakte, Schnellbuttons, Kategorien, API-Keys
+- **Statistik** — Anfragen gesamt, FAQ vs. KI, Token-Verbrauch
+
+> Der Begrüßungstext der Mini App kommt vollständig aus dem Admin-Portal (Настройки → Приветствие).
 
 ---
 
@@ -41,105 +72,54 @@ Browser → https://nalog.goeloria.com
 ### Server (SSH)
 ```bash
 ssh root@93.90.200.194
-# Passwort: STRATO Root-Passwort
 ```
 
 ### GitHub
 Repository: https://github.com/irynchen/bot-tansiura  
-Account: `irynchen` (privater Account)  
-Token: in GitHub unter Settings → Developer settings → Personal access tokens  
-Token-Name: `bot-tansiura-deploy`
+Account: `irynchen`
 
 ### Anthropic API
 Console: https://console.anthropic.com  
-API-Key: in GitHub unter Settings → Secrets NICHT gespeichert — liegt nur in `/var/www/nalog/ecosystem.config.js` auf dem Server
+API-Key: liegt nur in `/var/www/nalog/ecosystem.config.js` auf dem Server
 
 ---
 
-## Bot-Prozess auf dem Server verwalten
+## Bot-Prozess verwalten
 
 ```bash
 ssh root@93.90.200.194
 
-# Status prüfen
-pm2 status
+pm2 status              # Status prüfen
+pm2 logs bot-nalog      # Logs anschauen
+pm2 restart bot-nalog   # Neu starten
 
-# Logs anschauen
-pm2 logs bot-nalog
-
-# Bot neu starten
-pm2 restart bot-nalog
-
-# Bot stoppen
-pm2 stop bot-nalog
+# WICHTIG: Bei Änderungen an ecosystem.config.js (Token, Passwort):
+pm2 delete bot-nalog && pm2 start /var/www/nalog/ecosystem.config.js
 ```
 
 ---
 
 ## Änderungen deployen
 
-### Workflow: lokal → GitHub → Server
-
-```
-1. Datei lokal bearbeiten (index.html oder server.js)
-2. git add .
-3. git commit -m "Was geändert wurde"
-4. git push
-5. ssh root@93.90.200.194 "cd /var/www/nalog && git pull && pm2 restart bot-nalog"
-```
-
-**Kurzversion (Schritt 4+5 zusammen):**
 ```bash
+# 1. Lokal bearbeiten, dann:
+git add .
+git commit -m "Was geändert wurde"
+
+# 2. Push + Deploy in einem Befehl:
 git push && ssh root@93.90.200.194 "cd /var/www/nalog && git pull && pm2 restart bot-nalog"
 ```
-
-### Warum dieser Weg?
-- `git commit` → speichert eine Version lokal (Verlauf, Rückgängig machen möglich)
-- `git push` → lädt die Version auf GitHub (Backup, sichtbar im Browser)
-- `git pull` auf dem Server → Server holt die neue Version von GitHub
-- `pm2 restart` → Bot startet neu mit den neuen Dateien
-
-### Wie Versionen gespeichert werden
-
-```
-c:\Users\ishev\Projects\privat\bot-tansiura\
-    index.html        ← aktuelle Datei (sichtbar, bearbeitbar)
-    server.js
-    .git\             ← versteckter Ordner — enthält ALLE Versionen
-```
-
-Auf dem PC sind **alle Versionen** gespeichert (im `.git`-Ordner).  
-Die Dateien selbst zeigen immer nur die aktuelle Version.
-
-Ältere Versionen anschauen oder wiederherstellen → siehe `BEFEHLE.md`.
 
 ---
 
 ## API-Key erneuern
 
-Falls der Anthropic API-Key gesperrt oder abgelaufen ist:
-
-1. Neuen Key erstellen: https://console.anthropic.com/settings/keys
-2. Auf dem Server eintragen:
 ```bash
 ssh root@93.90.200.194
 nano /var/www/nalog/ecosystem.config.js
-# ANTHROPIC_API_KEY ersetzen, speichern mit Ctrl+O → Enter → Ctrl+X
-pm2 restart bot-nalog
+# ANTHROPIC_API_KEY ersetzen → Ctrl+O → Enter → Ctrl+X
+pm2 delete bot-nalog && pm2 start /var/www/nalog/ecosystem.config.js
 ```
-
----
-
-## FAQ erweitern
-
-Die FAQ-Antworten stehen direkt in `bot-tantsiura-ru.html`:
-- `FAQ_RU` — russische Antworten (ab Zeile ~408)
-- `FAQ_ES` — spanische Antworten (ab Zeile ~491)
-
-Jeder Eintrag hat:
-- `keys` — Schlüsselwörter die die Frage erkennen
-- `topic` — Name für die Statistik
-- `answer` — HTML-Antwort
 
 ---
 
@@ -149,7 +129,7 @@ Jeder Eintrag hat:
 /etc/nginx/sites-enabled/nalog
 ```
 
-Zertifikate:
+SSL-Zertifikate:
 ```
 /etc/letsencrypt/live/nalog.goeloria.com/fullchain.pem
 /etc/letsencrypt/live/nalog.goeloria.com/privkey.pem
