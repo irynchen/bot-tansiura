@@ -42,8 +42,8 @@ body { font-family: system-ui,-apple-system,sans-serif; background: var(--bg); c
 /* ── Sidebar ── */
 .sidebar { width:var(--sidebar-w); background:var(--sidebar-bg); color:#e4e4e7; display:flex; flex-direction:column; position:fixed; top:0; left:0; height:100vh; z-index:20; border-right:1px solid var(--sidebar-border); }
 .sidebar-brand { padding:20px 18px 16px; border-bottom:1px solid var(--sidebar-border); }
-.sidebar-logo  { width:110px; height:110px; border-radius:14px; overflow:hidden; background:#F5F0E8; margin-bottom:12px; }
-.sidebar-logo img { width:100%; height:100%; object-fit:contain; display:block; }
+.sidebar-logo  { width:100%; border-radius:14px; overflow:hidden; background:#F5F0E8; margin:0 auto 14px; display:block; }
+.sidebar-logo img { width:100%; height:auto; display:block; }
 .sidebar-title { font-size:13px; font-weight:600; color:#f4f4f5; line-height:1.4; }
 .sidebar-sub   { font-size:11px; color:#71717a; margin-top:2px; }
 .sidebar-nav   { flex:1; padding:12px 10px; display:flex; flex-direction:column; gap:2px; }
@@ -257,7 +257,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 <!-- Login -->
 <div id="loginScreen">
   <div class="login-card">
-    <div class="login-logo"><img src="/at-logo.png" alt="AT"></div>
+    <div class="login-logo"><img src="/logo_portal.png" alt="AT"></div>
     <h1>Админ-портал</h1>
     <p>Чат-бот Александра Танцюры<br>Управление контентом</p>
     <div class="field">
@@ -276,7 +276,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="sidebar-logo"><img src="/at-logo.png" alt="AT"></div>
+      <div class="sidebar-logo"><img src="/logo_portal.png" alt="AT"></div>
       <div class="sidebar-title">Чат-бот<br>Александра Танцюры</div>
       <div class="sidebar-sub">Админ-портал</div>
     </div>
