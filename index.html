@@ -34,44 +34,30 @@
   .header {
     background: var(--dark2); border: 1px solid var(--border);
     border-bottom: none; border-radius: 20px 20px 0 0;
-    padding: 16px 20px; display: flex; align-items: center; gap: 12px;
+    padding: 20px 20px 14px;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; gap: 5px;
   }
-  .avatar {
-    width: 46px; height: 46px; border-radius: 50%; overflow: hidden;
-    background: linear-gradient(135deg, var(--gold), #8B6914);
-    flex-shrink: 0; box-shadow: 0 0 20px rgba(201,168,76,0.3);
-    cursor: pointer; transition: transform 0.2s;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Playfair Display', serif; font-size: 16px;
-    font-weight: 600; color: var(--dark); letter-spacing: 0.5px;
+  .logo-wrap {
+    width: 80px; height: 80px; border-radius: 16px; overflow: hidden;
+    background: #F5F0E8; cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    transition: transform 0.2s; margin-bottom: 4px; flex-shrink: 0;
   }
-  .avatar:hover { transform: scale(1.05); }
-  .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-  .header-info { flex: 1; }
+  .logo-wrap:hover { transform: scale(1.05); }
+  .logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
   .header-name {
-    font-family: 'Playfair Display', serif; font-size: 15px;
+    font-family: 'Playfair Display', serif; font-size: 16px;
     font-weight: 600; color: var(--gold-light);
-    display: flex; align-items: baseline; gap: 8px;
   }
-  .about-link { background:none; border:none; padding:0; cursor:pointer; font-size:10px; color:#4ade80; text-decoration:underline; font-family:inherit; letter-spacing:0; text-transform:none; opacity:0.85; }
-  .about-link:hover { opacity:1; }
-  .header-sub { font-size: 11px; color: #b0a898; margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .header-bio { font-size: 10px; color: #9a9080; margin-top: 2px; }
-  .header-actions { display: flex; gap: 8px; align-items: center; }
-  .lang-toggle {
-    display: flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
-  }
-  .lang-btn {
-    padding: 4px 10px; font-size: 11px; cursor: pointer;
-    background: transparent; border: none; color: var(--muted);
-    font-family: 'DM Sans', sans-serif; transition: all 0.2s;
-  }
-  .lang-btn.active { background: rgba(201,168,76,0.2); color: var(--gold-light); }
+  .header-sub { font-size: 11px; color: #b0a898; text-transform: uppercase; letter-spacing: 0.5px; }
+  .status-row { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
   .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #4CAF50; box-shadow: 0 0 8px rgba(76,175,80,0.6);
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #4CAF50; box-shadow: 0 0 7px rgba(76,175,80,0.6);
     animation: pulse 2s infinite; flex-shrink: 0;
   }
+  .status-text { font-size: 10px; color: #4CAF50; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
   /* Contact bar */
@@ -270,14 +256,12 @@
 
   <!-- Header -->
   <div class="header">
-    <div class="avatar" onclick="document.querySelector('.stats-panel').classList.toggle('open')" title="Статистика"><img src="/sascha.jpg" alt="АТ"></div>
-    <div class="header-info">
-      <div class="header-name"><span class="header-name-text">Александр Танцюра</span><button class="about-link" onclick="showProfile()">ℹ️ Обо мне</button></div>
-      <div class="header-sub">Бухгалтер · Аликанте 🇪🇸</div>
-      <div class="header-bio">10 лет опыта · русскоязычный</div>
+    <div class="logo-wrap" onclick="showProfile()" ondblclick="document.querySelector('.stats-panel').classList.toggle('open')" title="Обо мне">
+      <img src="/at-logo.png" alt="AT">
     </div>
-    <div></div>
-    <div class="status-dot"></div>
+    <div class="header-name">Александр Танцюра</div>
+    <div class="header-sub">Налоговый консультант · Аликанте 🇪🇸</div>
+    <div class="status-row"><div class="status-dot"></div><span class="status-text">онлайн</span></div>
   </div>
 
   <!-- Contact bar -->
@@ -380,7 +364,7 @@ let configCategories = [];
 
 const TEXTS = {
   ru: {
-    welcome: 'Привет! Я <strong>Александр Танцюра</strong>, бухгалтер в Аликанте. Здесь мой помощник ответит на самые частые вопросы — быстро и бесплатно. Для личной консультации — пишите мне напрямую.',
+    welcome: 'Привет! 👋 Я помощник <strong>Александра Танцюры</strong> — налогового консультанта в Аликанте 🇪🇸<br><br>Задайте вопрос по налогам в Испании — отвечу сразу. Нажмите на фото вверху, чтобы узнать об Александре подробнее.',
     placeholder: 'Напишите ваш вопрос...',
     disclaimer: 'Ответы носят информационный характер. По конкретным ситуациям — обращайтесь к Александру лично.',
     today: 'Сегодня',
@@ -772,7 +756,12 @@ if (window.Telegram?.WebApp) {
   Telegram.WebApp.ready();
   Telegram.WebApp.expand();
   Telegram.WebApp.requestFullscreen?.();
-  setTimeout(() => { Telegram.WebApp.expand(); Telegram.WebApp.requestFullscreen?.(); }, 300);
+  setTimeout(() => {
+    Telegram.WebApp.expand();
+    Telegram.WebApp.requestFullscreen?.();
+    const top = Telegram.WebApp.safeAreaInset?.top || 0;
+    if (top > 0) document.querySelector('.wrapper').style.paddingTop = top + 'px';
+  }, 300);
 }
 
 let configProfile = {};
