@@ -770,17 +770,14 @@ let configProfile = {};
 
 function applyConfig(cfg) {
   if (!cfg) return;
-  if (cfg.botName)    document.querySelector('.header-name-text').textContent = cfg.botName;
-  if (cfg.botSubtitle) document.querySelector('.header-sub').textContent = cfg.botSubtitle;
-  if (cfg.botBio)     document.querySelector('.header-bio').textContent = cfg.botBio;
+  const qs = (sel) => document.querySelector(sel);
+  if (cfg.botName    && qs('.header-name')) qs('.header-name').textContent = cfg.botName;
+  if (cfg.botSubtitle && qs('.header-sub')) qs('.header-sub').textContent = cfg.botSubtitle;
   if (cfg.welcomeRU)  TEXTS.ru.welcome = cfg.welcomeRU;
   if (cfg.welcomeES)  TEXTS.es.welcome = cfg.welcomeES;
   if (cfg.contacts) {
     const c = cfg.contacts;
-    if (c.whatsapp) document.querySelector('.contact-btn.whatsapp').href = `https://wa.me/${c.whatsapp}`;
-    if (c.telegram) document.querySelector('.contact-btn.telegram').href = `https://t.me/${c.telegram}`;
-    if (c.site)     document.querySelector('.contact-btn.site').href = c.site;
-    if (c.email)    window._contactEmail = c.email;
+    if (c.email) window._contactEmail = c.email;
   }
   configProfile = {
     name:        cfg.botName            || 'Александр Танцюра',
