@@ -485,6 +485,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
           <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBr()">↵ Перенос</button>
           <div class="fmt-divider"></div>
           <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtRemove()">✕ Убрать формат</button>
+          <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="copyAnswer(this)" title="Inhalt kopieren">📋 Копировать</button>
           <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Генерировать с ИИ</button>
         </div>
         <div class="editor" id="mAnswer" contenteditable="true" onkeydown="editorKeydown(event)" onpaste="editorPaste(event)"></div>
@@ -841,6 +842,15 @@ function fmtList() {
   editor.focus();
   const isEmpty = editor.textContent.trim() === '';
   if (isEmpty) insertAtCursor('🔹 '); else { insertBr(); insertAtCursor('🔹 '); }
+}
+function copyAnswer(btn) {
+  const text = document.getElementById('mAnswer').innerText.trim();
+  if (!text) { showToast('Редактор пуст', 'error'); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Скопировано!';
+    setTimeout(() => btn.textContent = orig, 2000);
+  });
 }
 function fmtRemove() {
   const sel=window.getSelection(); if(!sel.rangeCount||sel.isCollapsed){showToast('Сначала выделите текст','error');return;}
