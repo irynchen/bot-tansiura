@@ -414,6 +414,9 @@ const server = http.createServer(async (req, res) => {
       await tg('sendMessage', { chat_id: chatId, text: plain, parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
       });
+      const sf = loadStats(); sf.total++; sf.faq++;
+      if (best.title) sf.topics[best.title] = (sf.topics[best.title] || 0) + 1;
+      saveStats(sf);
       return;
     }
 
@@ -437,6 +440,8 @@ const server = http.createServer(async (req, res) => {
     await tg('sendMessage', { chat_id: chatId, text: reply,
       reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
     });
+    if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
+    const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
     return;
   }
 
