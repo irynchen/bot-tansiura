@@ -661,20 +661,21 @@ server.listen(PORT, () => {
   if (ADMIN_PASSWORD) console.log(`Admin-Panel: http://localhost:${PORT}/admin`);
   if (TG_TOKEN) {
     const webhookUrl = `${BOT_URL}/api/telegram/webhook`;
-    const payload = JSON.stringify({
-      url: webhookUrl,
-      allowed_updates: ['message', 'business_message', 'business_connection', 'edited_business_message']
+    const tgCall = (method, payload) => new Promise((resolve, reject) => {
+      const data = payload ? JSON.stringify(payload) : null;
+      const opts = { hostname: 'api.telegram.org', path: `/bot${TG_TOKEN}/${method}`, method: data ? 'POST' : 'GET',
+        headers: data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {} };
+      const r = https.request(opts, rs => { let d=''; rs.on('data',c=>d+=c); rs.on('end',()=>resolve(JSON.parse(d))); });
+      r.on('error', reject); if (data) r.write(data); r.end();
     });
-    const r = https.request({
-      hostname: 'api.telegram.org',
-      path: `/bot${TG_TOKEN}/setWebhook`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
-    }, rs => {
-      let d = ''; rs.on('data', c => d += c);
-      rs.on('end', () => console.log('[TG] Webhook registriert:', JSON.parse(d).description || d));
-    });
-    r.on('error', e => console.error('[TG] Webhook-Fehler:', e.message));
-    r.write(payload); r.end();
+    tgCall('deleteWebhook', { drop_pending_updates: false })
+      .then(() => tgCall('setWebhook', {
+        url: webhookUrl,
+        allowed_updates: ['message', 'business_message', 'business_connection', 'edited_business_message']
+      }))
+      .then(r => console.log('[TG] Webhook gesetzt:', r.description, '| allowed:', r.ok))
+      .then(() => tgCall('getWebhookInfo'))
+      .then(r => console.log('[TG] Webhook-Info: url=', r.result?.url, 'allowed=', JSON.stringify(r.result?.allowed_updates)))
+      .catch(e => console.error('[TG] Webhook-Fehler:', e.message));
   }
 });
