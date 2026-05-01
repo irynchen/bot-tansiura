@@ -112,6 +112,23 @@ function dbGetUserStats() {
   };
 }
 
+function dbGetAiLog({ limit = 20, offset = 0, search = '' } = {}) {
+  if (!db) return { items: [], total: 0 };
+  const like = `%${search}%`;
+  const where = search
+    ? `WHERE m.answered_by = 'ai' AND (m.text LIKE ? OR m.answer LIKE ?)`
+    : `WHERE m.answered_by = 'ai'`;
+  const params = search ? [like, like] : [];
+  const total = db.prepare(`SELECT COUNT(*) as cnt FROM messages m ${where}`).get(...params).cnt;
+  const items = db.prepare(`
+    SELECT m.id, m.chat_id, m.text, m.answer, m.created_at,
+           u.first_name, u.last_name, u.username
+    FROM messages m LEFT JOIN users u ON u.chat_id = m.chat_id
+    ${where} ORDER BY m.created_at DESC LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+  return { items, total };
+}
+
 const STATIC_TYPES = {
   '.html': 'text/html; charset=utf-8', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.png': 'image/png', '.ico': 'image/x-icon', '.css': 'text/css',
@@ -590,6 +607,17 @@ const server = http.createServer(async (req, res) => {
     if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
     const chatId = parseInt(urlPath.split('/')[4]);
     json(res, 200, dbGetUserMessages(chatId, 50));
+    return;
+  }
+
+  // ── Admin: AI log ──────────────────────────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/admin/ai-log') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const qs     = new URLSearchParams(req.url.split('?')[1] || '');
+    const limit  = Math.min(parseInt(qs.get('limit')  || '20'), 100);
+    const offset = parseInt(qs.get('offset') || '0');
+    const search = qs.get('search') || '';
+    json(res, 200, dbGetAiLog({ limit, offset, search }));
     return;
   }
 

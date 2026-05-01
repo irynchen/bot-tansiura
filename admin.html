@@ -289,6 +289,10 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <span class="nav-icon">👥</span> Пользователи
         <span class="nav-badge" id="navUsersBadge">0</span>
       </button>
+      <button class="nav-item" id="navAilog"  onclick="showPage('ailog')">
+        <span class="nav-icon">🤖</span> ИИ-Ответы
+        <span class="nav-badge" id="navAilogBadge">0</span>
+      </button>
       <button class="nav-item" id="navConfig" onclick="showPage('config')">
         <span class="nav-icon">⚙️</span> Настройки
       </button>
@@ -449,6 +453,19 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <div id="usersPager" style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:13px;color:var(--muted)"></div>
       </div>
 
+      <!-- ══ AI log page ══ -->
+      <div class="page" id="pageAilog">
+        <div class="toolbar" style="margin-bottom:16px">
+          <div class="search-wrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" id="ailogSearchInput" placeholder="Поиск по вопросу или ответу…" oninput="onAiLogSearch(this.value)">
+          </div>
+          <button class="btn-ghost-sm" onclick="loadAiLog(0)" style="margin-left:auto">↻ Обновить</button>
+        </div>
+        <div id="ailogList"></div>
+        <div id="ailogPager" style="margin-top:4px"></div>
+      </div>
+
       <!-- ══ Stats page ══ -->
       <div class="page" id="pageStats">
         <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
@@ -571,6 +588,64 @@ function buildCategorySelect() {
   });
 }
 
+// ── AI Log ───────────────────────────────────────────────────────────────────
+
+let ailogOffset = 0;
+let ailogSearch = '';
+const AILOG_PER_PAGE = 10;
+
+async function loadAiLog(offset) {
+  ailogOffset = offset;
+  const qs = new URLSearchParams({ limit: AILOG_PER_PAGE, offset, search: ailogSearch });
+  const el = document.getElementById('ailogList');
+  el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px 0">Загрузка…</div>';
+  try {
+    const res  = await fetch(`/api/admin/ai-log?${qs}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const data = await res.json();
+    document.getElementById('navAilogBadge').textContent = data.total || 0;
+    renderAiLogList(data.items || [], data.total || 0);
+  } catch {
+    el.innerHTML = '<div style="color:var(--red);font-size:13px">Ошибка загрузки</div>';
+  }
+}
+
+function renderAiLogList(items, total) {
+  const el = document.getElementById('ailogList');
+  if (!items.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px 0">ИИ-ответов пока нет.</div>';
+    document.getElementById('ailogPager').innerHTML = '';
+    return;
+  }
+  el.innerHTML = items.map(m => {
+    const name = [m.first_name, m.last_name].filter(Boolean).join(' ') || m.username || `ID ${m.chat_id}`;
+    const uname = m.username ? ` <span style="color:var(--muted)">@${escHtml(m.username)}</span>` : '';
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+        <span>👤 <strong style="color:var(--text)">${escHtml(name)}</strong>${uname}</span>
+        <span>${fmtDate(m.created_at, true)}</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px">
+        <span style="font-size:16px;line-height:1.6;flex-shrink:0">💬</span>
+        <div style="background:var(--bg);border-radius:10px 10px 10px 2px;padding:8px 12px;font-size:13px;flex:1">${escHtml(m.text || '—')}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-direction:row-reverse">
+        <span style="font-size:16px;line-height:1.6;flex-shrink:0">🤖</span>
+        <div style="background:#eff6ff;border-radius:10px 10px 2px 10px;padding:8px 12px;font-size:13px;flex:1;color:var(--text);line-height:1.5">${m.answer ? escHtml(m.answer) : '<span style="color:var(--muted);font-style:italic">нет данных</span>'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  const pages = Math.ceil(total / AILOG_PER_PAGE);
+  const cur   = Math.floor(ailogOffset / AILOG_PER_PAGE);
+  document.getElementById('ailogPager').innerHTML = pages <= 1 ? '' :
+    `<div style="display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)">
+      ${cur > 0 ? `<button class="btn-ghost-sm" onclick="loadAiLog(${(cur-1)*AILOG_PER_PAGE})">← Назад</button>` : ''}
+      <span>Страница ${cur+1} из ${pages} · всего ${total}</span>
+      ${cur < pages-1 ? `<button class="btn-ghost-sm" onclick="loadAiLog(${(cur+1)*AILOG_PER_PAGE})">Вперёд →</button>` : ''}
+    </div>`;
+}
+
+function onAiLogSearch(v) { ailogSearch = v.trim(); loadAiLog(0); }
+
 if (token) loadAndShow();
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -618,7 +693,7 @@ async function loadAndShow() {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-const PAGE_TITLES = { faq:'FAQ-статьи', users:'Пользователи', config:'Настройки', stats:'Статистика' };
+const PAGE_TITLES = { faq:'FAQ-статьи', users:'Пользователи', ailog:'ИИ-Ответы', config:'Настройки', stats:'Статистика' };
 
 function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -628,6 +703,7 @@ function showPage(page) {
   document.getElementById('pageTitle').textContent = PAGE_TITLES[page];
   if (page === 'stats') { fetch('/api/admin/stats',{headers:{'Authorization':`Bearer ${token}`}}).then(r=>r.json()).then(d=>{serverStats=d;renderStats();}); }
   if (page === 'users') { loadUserStats(); loadUsers(0); }
+  if (page === 'ailog') { loadAiLog(0); }
 }
 
 function showCfgTab(tab) {
