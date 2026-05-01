@@ -200,6 +200,11 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 .btn-rm-cat:hover { background:#fecaca; }
 .btn-add-cat { padding:6px 14px; background:var(--bg); border:1px solid var(--border); border-radius:7px; font-size:12px; cursor:pointer; transition:all .15s; margin-top:4px; }
 .btn-add-cat:hover { background:var(--border); }
+.away-row { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px; }
+.away-row textarea { width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; outline:none; resize:vertical; font-family:inherit; background:var(--surface); transition:border-color .15s; box-sizing:border-box; }
+.away-row textarea:focus { border-color:var(--gold); }
+.away-row input { flex:1; padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; outline:none; font-family:inherit; background:var(--surface); transition:border-color .15s; min-width:0; }
+.away-row input:focus { border-color:var(--gold); }
 .emoji-picker { position:fixed; z-index:999; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); display:grid; grid-template-columns:repeat(8,1fr); gap:4px; width:260px; }
 .emoji-picker button { font-size:20px; border:none; background:none; cursor:pointer; border-radius:6px; padding:3px; line-height:1; transition:background .1s; }
 .emoji-picker button:hover { background:var(--border); }
@@ -446,10 +451,10 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
             </div>
           </div>
           <div class="cfg-field" style="margin-top:20px">
-            <label>Сообщение «Не на месте»</label>
-            <div class="hint">Текст для быстрого ответа клиентам, когда вы недоступны. Нажмите <strong>Копировать</strong> — и вставьте в Telegram как быстрый ответ.</div>
-            <textarea id="cfgAwayMessage" rows="5" style="margin-top:6px" placeholder="Сейчас недоступен, отвечу позже.&#10;Пока задайте вопрос боту — отвечает мгновенно:&#10;👉 https://nalog.goeloria.com"></textarea>
-            <button class="btn-ghost-sm" style="margin-top:8px" onclick="copyAwayMessage(this)">📋 Копировать</button>
+            <label>Сообщения «Не на месте»</label>
+            <div class="hint">Готовые тексты на разные случаи — выберите нужный и нажмите <strong>Копировать</strong>, чтобы вставить в Telegram.</div>
+            <div id="awayMsgEditor" style="margin-top:10px;display:flex;flex-direction:column;gap:10px"></div>
+            <button class="btn-add-qr" style="margin-top:8px" onclick="addAwayMsg()">＋ Добавить текст</button>
           </div>
           <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('business')">Сохранить</button></div>
         </div>
@@ -1116,7 +1121,7 @@ function populateConfigForm() {
   const bizEnabled = c.bizBotEnabled !== false;
   document.getElementById('cfgBizEnabled').checked = bizEnabled;
   updateBizToggle();
-  document.getElementById('cfgAwayMessage').value = c.awayMessage || '';
+  renderAwayMsgEditor();
   renderQrEditor();
   renderCatEditor();
 }
@@ -1137,15 +1142,47 @@ function toggleBizSwitch() {
   updateBizToggle();
 }
 
-async function copyAwayMessage(btn) {
-  const text = document.getElementById('cfgAwayMessage').value.trim();
+function renderAwayMsgEditor() {
+  const msgs = configData.awayMessages || [];
+  document.getElementById('awayMsgEditor').innerHTML = msgs.map((m, i) => `
+    <div class="away-row" data-i="${i}">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <input type="text" class="away-title" value="${escHtml(m.title||'')}" placeholder="Название (напр. «Отпуск»)">
+        <button class="btn-rm-qr" onclick="removeAwayMsg(${i})">✕</button>
+      </div>
+      <textarea class="away-text" rows="4" placeholder="Текст сообщения…">${escHtml(m.text||'')}</textarea>
+      <button class="btn-ghost-sm" style="margin-top:8px" onclick="copyAwayMsg(${i}, this)">📋 Копировать</button>
+    </div>`).join('');
+}
+
+function addAwayMsg() {
+  configData.awayMessages = configData.awayMessages || [];
+  configData.awayMessages.push({ title: '', text: '' });
+  renderAwayMsgEditor();
+}
+
+function removeAwayMsg(i) {
+  configData.awayMessages.splice(i, 1);
+  renderAwayMsgEditor();
+}
+
+async function copyAwayMsg(i, btn) {
+  const rows = document.querySelectorAll('#awayMsgEditor .away-row');
+  const text = rows[i]?.querySelector('.away-text')?.value.trim();
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
     const orig = btn.textContent;
     btn.textContent = '✓ Скопировано';
     setTimeout(() => btn.textContent = orig, 2000);
-  } catch { showToast('Не удалось скопировать','error'); }
+  } catch { showToast('Не удалось скопировать', 'error'); }
+}
+
+function collectAwayMessages() {
+  return [...document.querySelectorAll('#awayMsgEditor .away-row')].map(r => ({
+    title: r.querySelector('.away-title').value.trim(),
+    text:  r.querySelector('.away-text').value.trim()
+  })).filter(m => m.title || m.text);
 }
 
 function renderQrEditor() {
@@ -1296,7 +1333,7 @@ async function saveConfigSection(section) {
     configData.modelAdmin   = document.getElementById('cfgModelAdmin').value;
   } else if (section==='business') {
     configData.bizBotEnabled = document.getElementById('cfgBizEnabled').checked;
-    configData.awayMessage   = document.getElementById('cfgAwayMessage').value.trim();
+    configData.awayMessages  = collectAwayMessages();
   }
   try {
     const res = await fetch('/api/admin/config', { method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify(configData) });
