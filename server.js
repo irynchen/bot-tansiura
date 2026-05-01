@@ -566,7 +566,7 @@ const server = http.createServer(async (req, res) => {
     if (isGreeting && bizConnId) {
       if (text === '/start') return;
       const matched = greetings.find(g => lower.startsWith(g));
-      const rest = matched ? text.slice(matched.length).replace(/^[\s,!.?]+/, '').trim() : '';
+      const rest = matched ? text.replace(/^\S+/, '').replace(/^[\s,!.?]+/, '').trim() : '';
       if (!rest) return; // pure greeting — Alexander replies personally
       queryText = rest;
     }
