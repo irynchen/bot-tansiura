@@ -121,6 +121,12 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 .form-field .hint { font-size:12px; color:var(--muted); margin-bottom:6px; }
 .form-field input  { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; transition:border-color .15s; }
 .form-field input:focus { border-color:var(--gold); }
+.tags-wrap { display:flex; flex-wrap:wrap; gap:5px; align-items:center; padding:6px 10px; border:1px solid var(--border); border-radius:8px; cursor:text; min-height:42px; background:var(--surface); transition:border-color .15s; }
+.tags-wrap:focus-within { border-color:var(--gold); }
+.tag-chip { display:inline-flex; align-items:center; gap:3px; padding:3px 8px 3px 10px; background:rgba(201,168,76,.12); border:1px solid rgba(201,168,76,.35); border-radius:20px; font-size:12px; white-space:nowrap; line-height:1.4; }
+.tag-chip button { background:none; border:none; cursor:pointer; color:var(--muted); padding:0 1px; font-size:14px; line-height:1; display:flex; align-items:center; }
+.tag-chip button:hover { color:var(--red); }
+.tags-input { border:none; outline:none; font-size:13px; font-family:inherit; background:transparent; min-width:100px; flex:1; padding:3px 2px; color:var(--text); }
 .form-field select { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; background:var(--surface); transition:border-color .15s; cursor:pointer; }
 .form-field select:focus { border-color:var(--gold); }
 .form-row { display:flex; gap:12px; }
@@ -564,8 +570,10 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       </div>
       <div class="form-field">
         <label>Ключевые слова</label>
-        <div class="hint">Через запятую — бот ищет эти слова в вопросе пользователя.</div>
-        <input type="text" id="mKeys" placeholder="iva, ндс, что такое iva">
+        <div class="hint">Enter или Запятая — добавить слово. Backspace — удалить последнее.</div>
+        <div class="tags-wrap" id="mKeysTags" onclick="document.getElementById('mKeysInput').focus()">
+          <input type="text" id="mKeysInput" class="tags-input" placeholder="Добавить слово…">
+        </div>
       </div>
       <div class="form-field">
         <label>Пункты меню <span style="font-weight:400;color:var(--muted)">(можно несколько)</span></label>
@@ -697,6 +705,56 @@ async function toggleExclude(chatId, currentExcluded, btn) {
     btn.setAttribute('onclick', `toggleExclude(${chatId}, ${newExcluded}, this)`);
   } catch { showToast('Ошибка при сохранении','error'); }
 }
+
+// ── Tag-chips for keywords ────────────────────────────────────────────────────
+
+let _mKeysList = [];
+
+function renderTags() {
+  const wrap = document.getElementById('mKeysTags');
+  const input = document.getElementById('mKeysInput');
+  wrap.querySelectorAll('.tag-chip').forEach(c => c.remove());
+  _mKeysList.forEach((tag, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.innerHTML = `${escHtml(tag)}<button type="button" onclick="removeTag(${i})" tabindex="-1">×</button>`;
+    wrap.insertBefore(chip, input);
+  });
+  input.placeholder = _mKeysList.length ? '' : 'Добавить слово…';
+}
+
+function addTag(val) {
+  val.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
+    .forEach(t => { if (!_mKeysList.includes(t)) _mKeysList.push(t); });
+  renderTags();
+}
+
+function removeTag(i) { _mKeysList.splice(i, 1); renderTags(); }
+function getTagsArray() { return [..._mKeysList]; }
+function setTagsArray(arr) { _mKeysList = (arr || []).map(t => String(t).trim()).filter(Boolean); renderTags(); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('mKeysInput');
+  if (!inp) return;
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const v = inp.value.trim().replace(/,$/, '');
+      if (v) { addTag(v); inp.value = ''; }
+    } else if (e.key === 'Backspace' && !inp.value && _mKeysList.length) {
+      removeTag(_mKeysList.length - 1);
+    }
+  });
+  inp.addEventListener('blur', () => {
+    const v = inp.value.trim().replace(/,$/, '');
+    if (v) { addTag(v); inp.value = ''; }
+  });
+  inp.addEventListener('paste', e => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text');
+    addTag(pasted); inp.value = '';
+  });
+});
 
 if (token) loadAndShow();
 
@@ -925,12 +983,12 @@ function openModal(id) {
     const entry = (faqData.ru||[]).find(e => e.id === id);
     if (!entry) return;
     document.getElementById('mTopic').value = entry.topic;
-    document.getElementById('mKeys').value  = (entry.keys||[]).join(', ');
+    setTagsArray(entry.keys||[]);
     document.getElementById('mAnswer').innerHTML = entry.answer + '<br>';
     renderMenuItemsEditor(getMenuItems(entry));
   } else {
     document.getElementById('mTopic').value = '';
-    document.getElementById('mKeys').value  = '';
+    setTagsArray([]);
     document.getElementById('mAnswer').innerHTML = '<br>';
     renderMenuItemsEditor([]);
   }
@@ -943,7 +1001,7 @@ function backdropClick(e) { if (e.target === document.getElementById('modalBackd
 
 async function saveEntry() {
   const topic  = document.getElementById('mTopic').value.trim();
-  const keys   = document.getElementById('mKeys').value.split(',').map(k=>k.trim()).filter(Boolean);
+  const keys   = getTagsArray();
   const answer = document.getElementById('mAnswer').innerHTML.trim().replace(/<br\s*\/?>$/i, '').trim();
   const menuItems = collectMenuItems();
   if (!topic)  { showToast('Тема не может быть пустой', 'error'); return; }
@@ -1084,7 +1142,7 @@ async function aiFormat() {
   const editor  = document.getElementById('mAnswer');
   const text    = editor.innerText.trim();
   const topic   = document.getElementById('mTopic').value.trim();
-  const keys    = document.getElementById('mKeys').value.trim();
+  const keys    = getTagsArray().join(', ');
   const isEmpty = !text;
   if (isEmpty && !topic) { showToast('Заполните тему или введите текст','error'); return; }
   const btn = document.getElementById('aiFmtBtn');
@@ -1101,7 +1159,7 @@ async function aiFormat() {
     try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim()); }
     catch { editor.innerHTML = raw; showToast('Готово ✓','success'); btn.textContent='✨ Генерировать с ИИ'; btn.disabled=false; return; }
     if (parsed.html) editor.innerHTML = parsed.html;
-    if (parsed.keywords?.length) document.getElementById('mKeys').value = parsed.keywords.join(', ');
+    if (parsed.keywords?.length) setTagsArray(parsed.keywords);
     showToast('Готово ✓','success');
   } catch(err) { showToast('Сетевая ошибка: '+err.message,'error'); }
   btn.textContent='✨ Генерировать с ИИ'; btn.disabled=false;
