@@ -525,23 +525,34 @@ const server = http.createServer(async (req, res) => {
     if (bizConnId && msg.from?.id) {
       let ownerId = bizOwners.get(bizConnId);
       if (!ownerId) {
-        // Fetch connection info if not cached
-        try {
-          const connData = JSON.stringify({ business_connection_id: bizConnId });
-          const connRes = await new Promise((resolve, reject) => {
-            const r = https.request({ hostname:'api.telegram.org', path:`/bot${TG_TOKEN}/getBusinessConnection`, method:'POST',
-              headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(connData)} }, rs => {
-              let d=''; rs.on('data',c=>d+=c); rs.on('end',()=>resolve(JSON.parse(d)));
+        // Try persistent cache in config first (survives restarts)
+        ownerId = loadConfig()._bizOwners?.[bizConnId] || null;
+        if (ownerId) {
+          bizOwners.set(bizConnId, ownerId);
+        } else {
+          // Fetch from Telegram API
+          try {
+            const connData = JSON.stringify({ business_connection_id: bizConnId });
+            const connRes = await new Promise((resolve, reject) => {
+              const r = https.request({ hostname:'api.telegram.org', path:`/bot${TG_TOKEN}/getBusinessConnection`, method:'POST',
+                headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(connData)} }, rs => {
+                let d=''; rs.on('data',c=>d+=c); rs.on('end',()=>resolve(JSON.parse(d)));
+              });
+              r.on('error', reject); r.write(connData); r.end();
             });
-            r.on('error', reject); r.write(connData); r.end();
-          });
-          if (connRes.result?.user?.id) {
-            bizOwners.set(bizConnId, connRes.result.user.id);
-            ownerId = connRes.result.user.id;
-          }
-        } catch {}
+            if (connRes.result?.user?.id) {
+              ownerId = connRes.result.user.id;
+              bizOwners.set(bizConnId, ownerId);
+              // Persist so it survives server restarts
+              const cfg = loadConfig();
+              cfg._bizOwners = { ...(cfg._bizOwners || {}), [bizConnId]: ownerId };
+              saveConfig(cfg);
+              console.log('[BIZ] owner persisted:', bizConnId, '→', ownerId);
+            }
+          } catch(e) { console.warn('[BIZ] getBusinessConnection failed:', e.message); }
+        }
       }
-      if (ownerId && msg.from.id === ownerId) return;
+      if (ownerId && msg.from.id === ownerId) { console.log('[BIZ] skipping owner msg'); return; }
     }
 
     dbUpsertUser(chatId, msg.chat.username, msg.chat.first_name, msg.chat.last_name);
