@@ -342,6 +342,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
           <button class="cfg-tab" onclick="showCfgTab('buttons')">🔘 Быстрые кнопки</button>
           <button class="cfg-tab" onclick="showCfgTab('categories')">🗂 Категории</button>
           <button class="cfg-tab" onclick="showCfgTab('apikeys')">🔑 API-ключи</button>
+          <button class="cfg-tab" onclick="showCfgTab('business')">🤖 Бизнес-чат</button>
         </div>
 
         <!-- Tab: Профиль -->
@@ -430,6 +431,22 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
           </div>
           <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('apikeys')">Сохранить</button></div>
         </div>
+
+        <!-- Tab: Бизнес-чат -->
+        <div class="cfg-panel" id="cfgTab-business">
+          <div class="cfg-field">
+            <label>Авто-ответ в Business-чате</label>
+            <div class="hint">Управляет ответами бота в личных чатах Александра (Telegram Business). Отключите, чтобы бот полностью замолчал в Direct Messages. Обычный бот (@TantsiuraTax_Bot) продолжает работать.</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:8px;cursor:pointer" onclick="toggleBizSwitch()">
+              <span class="tog-track" id="cfgBizTrack" style="position:relative;display:inline-block;width:44px;height:24px;border-radius:12px;background:var(--muted);transition:background .2s;flex-shrink:0">
+                <span class="tog-thumb" style="position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+              </span>
+              <input type="checkbox" id="cfgBizEnabled" style="display:none">
+              <span id="cfgBizLabel" style="font-size:14px;font-weight:500">Включён</span>
+            </div>
+          </div>
+          <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('business')">Сохранить</button></div>
+        </div>
       </div>
 
       <!-- ══ Users page ══ -->
@@ -445,7 +462,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th>Пользователь</th><th>Username</th><th>Chat ID</th><th>Первый визит</th><th>Последний визит</th><th>Сообщений</th><th>История</th><th title="Ausschluss vom Business-Chat">🚫 Biz</th>
+              <th>Пользователь</th><th>Username</th><th>Chat ID</th><th>Первый визит</th><th>Последний визит</th><th>Сообщений</th><th>История</th><th title="Авто-ответ бота в Business-чате для этого пользователя">🤖 Бизнес-бот</th>
             </tr></thead>
             <tbody id="usersBody"></tbody>
           </table>
@@ -655,11 +672,11 @@ async function toggleExclude(chatId, currentExcluded, btn) {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ excluded: newExcluded })
     });
-    btn.textContent   = newExcluded ? '🚫 Ausgeschl.' : 'Ausschließen';
+    btn.textContent   = newExcluded ? '🚫 Бот откл.' : '✓ Бот вкл.';
     btn.style.color   = newExcluded ? 'var(--red)' : '';
     btn.style.borderColor = newExcluded ? 'var(--red-border)' : '';
     btn.setAttribute('onclick', `toggleExclude(${chatId}, ${newExcluded}, this)`);
-  } catch { alert('Fehler beim Speichern'); }
+  } catch { showToast('Ошибка при сохранении','error'); }
 }
 
 if (token) loadAndShow();
@@ -1090,8 +1107,27 @@ function populateConfigForm() {
   document.getElementById('hintKeyAdmin').innerHTML  = mkHint(c.apiKeyAdminMasked);
   document.getElementById('cfgKeyClient').value = '';
   document.getElementById('cfgKeyAdmin').value  = '';
+  const bizEnabled = c.bizBotEnabled !== false;
+  document.getElementById('cfgBizEnabled').checked = bizEnabled;
+  updateBizToggle();
   renderQrEditor();
   renderCatEditor();
+}
+
+function updateBizToggle() {
+  const on = document.getElementById('cfgBizEnabled').checked;
+  const track = document.getElementById('cfgBizTrack');
+  const thumb = track.querySelector('.tog-thumb');
+  track.style.background = on ? 'var(--green)' : 'var(--muted)';
+  thumb.style.left = on ? '22px' : '2px';
+  document.getElementById('cfgBizLabel').textContent = on ? 'Включён' : 'Отключён';
+  document.getElementById('cfgBizLabel').style.color = on ? 'var(--green)' : 'var(--red)';
+}
+
+function toggleBizSwitch() {
+  const cb = document.getElementById('cfgBizEnabled');
+  cb.checked = !cb.checked;
+  updateBizToggle();
 }
 
 function renderQrEditor() {
@@ -1240,6 +1276,8 @@ async function saveConfigSection(section) {
     configData.apiKeyAdmin  = document.getElementById('cfgKeyAdmin').value.trim()  || '';
     configData.modelClient  = document.getElementById('cfgModelClient').value;
     configData.modelAdmin   = document.getElementById('cfgModelAdmin').value;
+  } else if (section==='business') {
+    configData.bizBotEnabled = document.getElementById('cfgBizEnabled').checked;
   }
   try {
     const res = await fetch('/api/admin/config', { method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify(configData) });
@@ -1403,7 +1441,7 @@ function renderUsersTable(users) {
       <td style="color:var(--muted);font-size:12px">${fmtDate(u.last_seen, true)}</td>
       <td><span style="font-weight:600">${u.msg_count}</span></td>
       <td><button class="btn-edit" onclick="openUserMessages(${u.chat_id}, '${escHtml(name)}')">Открыть</button></td>
-      <td><button class="btn-ghost-sm" style="${u.excluded ? 'color:var(--red);border-color:var(--red-border)' : ''}" onclick="toggleExclude(${u.chat_id}, ${u.excluded ? 1 : 0}, this)">${u.excluded ? '🚫 Ausgeschl.' : 'Ausschließen'}</button></td>
+      <td><button class="btn-ghost-sm" style="${u.excluded ? 'color:var(--red);border-color:var(--red-border)' : ''}" onclick="toggleExclude(${u.chat_id}, ${u.excluded ? 1 : 0}, this)">${u.excluded ? '🚫 Бот откл.' : '✓ Бот вкл.'}</button></td>
     </tr>`;
   }).join('');
 }

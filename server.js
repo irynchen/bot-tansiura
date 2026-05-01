@@ -518,6 +518,9 @@ const server = http.createServer(async (req, res) => {
     const text   = (msg.text || '').trim();
     if (!text) return;
 
+    // Global Business Chat on/off switch
+    if (bizConnId && loadConfig().bizBotEnabled === false) return;
+
     // Skip messages sent BY the business account owner (Alexander's own messages)
     if (bizConnId && msg.from?.id) {
       let ownerId = bizOwners.get(bizConnId);
