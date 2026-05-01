@@ -445,6 +445,12 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
               <span id="cfgBizLabel" style="font-size:14px;font-weight:500">Включён</span>
             </div>
           </div>
+          <div class="cfg-field" style="margin-top:20px">
+            <label>Сообщение «Не на месте»</label>
+            <div class="hint">Текст для быстрого ответа клиентам, когда вы недоступны. Нажмите <strong>Копировать</strong> — и вставьте в Telegram как быстрый ответ.</div>
+            <textarea id="cfgAwayMessage" rows="5" style="margin-top:6px" placeholder="Сейчас недоступен, отвечу позже.&#10;Пока задайте вопрос боту — отвечает мгновенно:&#10;👉 https://nalog.goeloria.com"></textarea>
+            <button class="btn-ghost-sm" style="margin-top:8px" onclick="copyAwayMessage(this)">📋 Копировать</button>
+          </div>
           <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('business')">Сохранить</button></div>
         </div>
       </div>
@@ -1110,6 +1116,7 @@ function populateConfigForm() {
   const bizEnabled = c.bizBotEnabled !== false;
   document.getElementById('cfgBizEnabled').checked = bizEnabled;
   updateBizToggle();
+  document.getElementById('cfgAwayMessage').value = c.awayMessage || '';
   renderQrEditor();
   renderCatEditor();
 }
@@ -1128,6 +1135,17 @@ function toggleBizSwitch() {
   const cb = document.getElementById('cfgBizEnabled');
   cb.checked = !cb.checked;
   updateBizToggle();
+}
+
+async function copyAwayMessage(btn) {
+  const text = document.getElementById('cfgAwayMessage').value.trim();
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = '✓ Скопировано';
+    setTimeout(() => btn.textContent = orig, 2000);
+  } catch { showToast('Не удалось скопировать','error'); }
 }
 
 function renderQrEditor() {
@@ -1278,6 +1296,7 @@ async function saveConfigSection(section) {
     configData.modelAdmin   = document.getElementById('cfgModelAdmin').value;
   } else if (section==='business') {
     configData.bizBotEnabled = document.getElementById('cfgBizEnabled').checked;
+    configData.awayMessage   = document.getElementById('cfgAwayMessage').value.trim();
   }
   try {
     const res = await fetch('/api/admin/config', { method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify(configData) });
