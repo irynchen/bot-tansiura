@@ -595,7 +595,8 @@ const server = http.createServer(async (req, res) => {
       afterGreet = afterGreet.replace(/^(вечер|день|утро|ночь|дня)\b\s*/i, '').replace(/^[\s,!.?,]+/, '').trim();
       const questionPart = afterGreet;
       if (!questionPart) {
-        // Pure greeting — respond and stop
+        // Pure greeting — in away mode stay silent (Telegram's own away message is enough)
+        if (loadConfig().bizAwayMode) return;
         const greetingText = '👋 Привет! Я помощник Александра Танцюры по налоговым вопросам в Испании. Задайте ваш вопрос — отвечу сразу!';
         await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: greetingText });
         dbLogMessage(chatId, text, 'greeting', greetingText);
@@ -604,7 +605,7 @@ const server = http.createServer(async (req, res) => {
       // Greeting + question — process question, prepend greeting to answer
       queryText  = questionPart;
       queryLower = questionPart.toLowerCase();
-      bizGreetPrefix = true;
+      bizGreetPrefix = !loadConfig().bizAwayMode; // no greeting prefix when in away mode
     }
 
     if (isGreeting && !bizConnId) {
