@@ -369,7 +369,15 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 
         <!-- Tab: Приветствие -->
         <div class="cfg-panel" id="cfgTab-welcome">
-          <div class="cfg-field"><label>Приветственное сообщение</label><div class="hint">Поддерживает &lt;strong&gt; для жирного текста и &lt;br&gt; для переноса.</div><textarea id="cfgWelcomeRU" rows="4"></textarea></div>
+          <div class="cfg-field">
+            <label>Приветственное сообщение</label>
+            <div class="hint">Поддерживает &lt;strong&gt; для жирного текста и &lt;br&gt; для переноса.</div>
+            <textarea id="cfgWelcomeRU" rows="4"></textarea>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <input type="text" id="cfgWelcomeHint" placeholder="1–2 слова для ИИ (напр. «дружелюбно», «коротко»)" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+              <button class="btn-ghost-sm" onclick="genWelcome(this)" style="flex-shrink:0;white-space:nowrap">✨ Генерировать</button>
+            </div>
+          </div>
           <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('welcome')">Сохранить</button></div>
         </div>
 
@@ -1218,6 +1226,34 @@ function collectAwayMessages() {
     title: r.querySelector('.away-title').value.trim(),
     text:  r.querySelector('.away-text').value.trim()
   })).filter(m => m.title || m.text);
+}
+
+async function genWelcome(btn) {
+  const name     = document.getElementById('cfgBotName').value.trim() || configData.botName || 'Александр';
+  const subtitle = document.getElementById('cfgBotSubtitle').value.trim() || configData.botSubtitle || '';
+  const hint     = document.getElementById('cfgWelcomeHint').value.trim();
+  const orig = btn.textContent;
+  btn.textContent = '⏳ Генерирую…'; btn.disabled = true;
+  const sys = `Ты помогаешь написать приветственное сообщение для Telegram-бота налогового консультанта.
+Имя: ${name}${subtitle ? '. ' + subtitle : ''}.
+Клиенты — русскоязычные. Тон: дружелюбный, коротко (1–3 предложения).
+Поддерживается HTML: <strong> для жирного, <br> для переноса строки.
+Отвечай ТОЛЬКО текстом сообщения, без кавычек и пояснений.`;
+  const prompt = hint ? `Пожелания: ${hint}` : 'Напиши стандартное приветствие.';
+  try {
+    const res = await fetch('/api/admin/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ model: configData.modelAdmin || 'claude-sonnet-4-6', max_tokens: 300,
+        system: sys, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('API-ошибка: ' + (data.error?.message || '').slice(0, 80), 'error'); return; }
+    const text = data.content?.[0]?.text?.trim() || '';
+    if (text) document.getElementById('cfgWelcomeRU').value = text;
+    showToast('Готово ✓', 'success');
+  } catch(err) { showToast('Сетевая ошибка: ' + err.message, 'error'); }
+  btn.textContent = orig; btn.disabled = false;
 }
 
 function renderQrEditor() {
