@@ -1058,6 +1058,14 @@ function wrapSelection(tag,cls) {
 
 // ── AI ─────────────────────────────────────────────────────────────────────────
 
+const AWAY_SYS = `Ты помощник Александра Танцюры — налогового консультанта в Аликанте, Испания.
+Пишешь короткие сообщения «не на месте» для Telegram, когда Александр недоступен.
+Клиенты — русскоязычные. Тон: дружелюбный, профессиональный.
+Всегда добавляй ссылку на бота: https://nalog.goeloria.com
+Отвечай ТОЛЬКО JSON без markdown-обёртки: {"title":"...","text":"..."}
+title: 1–4 слова (ситуация, напр. «Отпуск», «Вечером отвечу», «Не на месте»)
+text: 2–5 строк без HTML. Переносы строк: \\n`;
+
 const AI_SYS = `Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания).
 Пишешь FAQ-ответы для русскоязычных клиентов. Отвечай по-русски, кратко и точно.
 Возвращай только JSON: {"html":"...","keywords":[...]}
@@ -1147,7 +1155,8 @@ function renderAwayMsgEditor() {
   document.getElementById('awayMsgEditor').innerHTML = msgs.map((m, i) => `
     <div class="away-row" data-i="${i}">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-        <input type="text" class="away-title" value="${escHtml(m.title||'')}" placeholder="Название (напр. «Отпуск»)">
+        <input type="text" class="away-title" value="${escHtml(m.title||'')}" placeholder="Название или 1–2 слова для ИИ (напр. «Отпуск»)">
+        <button class="btn-ghost-sm" style="flex-shrink:0;padding:6px 10px" title="Генерировать текст с ИИ по ключевым словам в поле «Название»" onclick="genAwayMsg(${i}, this)">✨</button>
         <button class="btn-rm-qr" onclick="removeAwayMsg(${i})">✕</button>
       </div>
       <textarea class="away-text" rows="4" placeholder="Текст сообщения…">${escHtml(m.text||'')}</textarea>
@@ -1164,6 +1173,32 @@ function addAwayMsg() {
 function removeAwayMsg(i) {
   configData.awayMessages.splice(i, 1);
   renderAwayMsgEditor();
+}
+
+async function genAwayMsg(i, btn) {
+  const row = document.querySelectorAll('#awayMsgEditor .away-row')[i];
+  const keywords = row.querySelector('.away-title').value.trim();
+  if (!keywords) { showToast('Введите 1–2 ключевых слова в поле «Название»', 'error'); return; }
+  const orig = btn.textContent;
+  btn.textContent = '⏳'; btn.disabled = true;
+  try {
+    const res = await fetch('/api/admin/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ model: configData.modelAdmin || 'claude-sonnet-4-6', max_tokens: 400,
+        system: AWAY_SYS, messages: [{ role: 'user', content: `Ключевые слова: "${keywords}"` }] })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('API-ошибка: ' + (data.error?.message || '').slice(0, 80), 'error'); return; }
+    const raw = data.content?.[0]?.text?.trim() || '';
+    let parsed;
+    try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()); }
+    catch { showToast('Не удалось разобрать ответ ИИ', 'error'); return; }
+    if (parsed.title) row.querySelector('.away-title').value = parsed.title;
+    if (parsed.text)  row.querySelector('.away-text').value  = parsed.text.replace(/\\n/g, '\n');
+    showToast('Готово ✓', 'success');
+  } catch(err) { showToast('Сетевая ошибка: ' + err.message, 'error'); }
+  btn.textContent = orig; btn.disabled = false;
 }
 
 async function copyAwayMsg(i, btn) {
