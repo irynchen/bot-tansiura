@@ -496,7 +496,9 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && urlPath === '/api/telegram/webhook') {
     const body = await readJsonBody(req);
     res.writeHead(200); res.end('ok');
-    const msg = body.message;
+
+    const msg       = body.message || body.business_message;
+    const bizConnId = body.business_message?.business_connection_id || null;
     if (!msg?.chat?.id) return;
     const chatId = msg.chat.id;
     const text   = (msg.text || '').trim();
@@ -515,12 +517,17 @@ const server = http.createServer(async (req, res) => {
       r.on('error', reject); r.write(data); r.end();
     });
 
+    const bizExtra = bizConnId ? { business_connection_id: bizConnId } : {};
+
     // FAQ search
     const faqList = (loadFaq().ru || []);
     const lower = text.toLowerCase();
 
     const greetings = ['привет', 'здравствуй', 'добрый', 'hallo', 'hello', 'hi', 'хай', 'салют', 'buenos'];
     const isGreeting = text === '/start' || greetings.some(g => lower.startsWith(g));
+
+    // Business context: skip greetings — Alexander replies personally
+    if (isGreeting && bizConnId) return;
 
     if (isGreeting) {
       await tg('sendMessage', { chat_id: chatId,
@@ -548,7 +555,7 @@ const server = http.createServer(async (req, res) => {
       const plain = best.answer
         .replace(/<br\s*\/?>/gi, '\n').replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
         .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1').replace(/<[^>]+>/g, '').trim();
-      await tg('sendMessage', { chat_id: chatId, text: plain + '\n\n✅ Проверено Александром', parse_mode: 'Markdown',
+      await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: plain + '\n\n✅ Проверено Александром', parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
       });
       const sf = loadStats(); sf.total++; sf.faq++;
@@ -561,11 +568,11 @@ const server = http.createServer(async (req, res) => {
     // AI fallback
     const apiKey = getApiKey('client');
     if (!apiKey) {
-      await tg('sendMessage', { chat_id: chatId, text: 'Бот временно недоступен. Обратитесь напрямую: @AlexanderTantsiura' });
+      if (!bizConnId) await tg('sendMessage', { chat_id: chatId, text: 'Бот временно недоступен. Обратитесь напрямую: @AlexanderTantsiura' });
       return;
     }
-    await tg('sendChatAction', { chat_id: chatId, action: 'typing' });
-    const sysPrompt = 'Ты дружелюбный помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ `). Не предлагай сразу писать лично — сначала помоги с вопросом.';
+    await tg('sendChatAction', { ...bizExtra, chat_id: chatId, action: 'typing' });
+    const sysPrompt = 'Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ `). Не предлагай сразу писать лично — сначала помоги с вопросом. Если вопрос явно не связан с налогами, финансами или бухгалтерией — ответь строго одним словом: [SKIP]';
     const aiBody = JSON.stringify({ model: getModel('client'), max_tokens: 600, system: sysPrompt, messages: [{ role:'user', content: text }] });
     const aiRes  = await new Promise((resolve, reject) => {
       const r = https.request({ hostname:'api.anthropic.com', path:'/v1/messages', method:'POST',
@@ -574,11 +581,12 @@ const server = http.createServer(async (req, res) => {
       });
       r.on('error', reject); r.write(aiBody); r.end();
     });
-    const reply = aiRes.content?.[0]?.text || 'Не удалось получить ответ.';
-    await tg('sendMessage', { chat_id: chatId, text: reply + '\n\n💬 Авто-ответ',
+    const reply = aiRes.content?.[0]?.text || '';
+    if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
+    if (!reply || reply.trim() === '[SKIP]') return;
+    await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: reply + '\n\n💬 Авто-ответ',
       reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
     });
-    if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
     const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
     dbLogMessage(chatId, text, 'ai', reply);
     return;
