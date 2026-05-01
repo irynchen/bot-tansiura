@@ -377,12 +377,17 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <div class="cfg-panel" id="cfgTab-welcome">
           <div class="cfg-field">
             <label>Приветственное сообщение</label>
-            <div class="hint">Поддерживает &lt;strong&gt; для жирного текста и &lt;br&gt; для переноса.</div>
-            <textarea id="cfgWelcomeRU" rows="4"></textarea>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-              <input type="text" id="cfgWelcomeHint" placeholder="1–2 слова для ИИ (напр. «дружелюбно», «коротко»)" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
-              <button class="btn-ghost-sm" onclick="genWelcome(this)" style="flex-shrink:0;white-space:nowrap">✨ Генерировать</button>
+            <div class="editor-toolbar" style="border-radius:8px 8px 0 0">
+              <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="welcomeFmt('bold')"><strong>Ж</strong></button>
+              <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="welcomeFmt('br')">↵ Перенос</button>
+              <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="welcomeFmt('remove')">✕ Убрать формат</button>
+              <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+                <input type="text" id="cfgWelcomeHint" placeholder="1–2 слова для ИИ…" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;outline:none;font-family:inherit;width:180px">
+                <button class="fmt-btn ai-btn" onclick="genWelcome(this)">✨ Генерировать</button>
+              </div>
             </div>
+            <div class="editor" id="cfgWelcomeRU" contenteditable="true" style="min-height:80px;max-height:200px;border-radius:0 0 8px 8px"
+              onpaste="welcomePaste(event)"></div>
           </div>
           <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('welcome')">Сохранить</button></div>
         </div>
@@ -1219,7 +1224,7 @@ function populateConfigForm() {
   document.getElementById('cfgProfileExperience').value= c.profileExperience|| '';
   document.getElementById('cfgProfileLanguages').value = c.profileLanguages || '';
   document.getElementById('cfgProfileSpecialty').value = c.profileSpecialty || '';
-  document.getElementById('cfgWelcomeRU').value   = c.welcomeRU   || '';
+  document.getElementById('cfgWelcomeRU').innerHTML = (c.welcomeRU || '') + (c.welcomeRU ? '' : '<br>');
   if (c.contacts) {
     document.getElementById('cfgWhatsapp').value = c.contacts.whatsapp || '';
     document.getElementById('cfgTelegram').value = c.contacts.telegram || '';
@@ -1330,6 +1335,24 @@ function collectAwayMessages() {
   })).filter(m => m.title || m.text);
 }
 
+function welcomeFmt(cmd) {
+  const el = document.getElementById('cfgWelcomeRU');
+  el.focus();
+  if (cmd === 'bold') {
+    document.execCommand('bold', false, null);
+  } else if (cmd === 'br') {
+    document.execCommand('insertHTML', false, '<br>');
+  } else if (cmd === 'remove') {
+    document.execCommand('removeFormat', false, null);
+  }
+}
+
+function welcomePaste(e) {
+  e.preventDefault();
+  const text = e.clipboardData.getData('text/plain');
+  document.execCommand('insertText', false, text);
+}
+
 async function genWelcome(btn) {
   const name     = document.getElementById('cfgBotName').value.trim() || configData.botName || 'Александр';
   const subtitle = document.getElementById('cfgBotSubtitle').value.trim() || configData.botSubtitle || '';
@@ -1352,7 +1375,7 @@ async function genWelcome(btn) {
     const data = await res.json();
     if (!res.ok) { showToast('API-ошибка: ' + (data.error?.message || '').slice(0, 80), 'error'); return; }
     const text = data.content?.[0]?.text?.trim() || '';
-    if (text) document.getElementById('cfgWelcomeRU').value = text;
+    if (text) document.getElementById('cfgWelcomeRU').innerHTML = text;
     showToast('Готово ✓', 'success');
   } catch(err) { showToast('Сетевая ошибка: ' + err.message, 'error'); }
   btn.textContent = orig; btn.disabled = false;
@@ -1484,7 +1507,7 @@ async function saveConfigSection(section) {
     configData.profileLanguages  = document.getElementById('cfgProfileLanguages').value.trim();
     configData.profileSpecialty  = document.getElementById('cfgProfileSpecialty').value.trim();
   } else if (section==='welcome') {
-    configData.welcomeRU = document.getElementById('cfgWelcomeRU').value.trim();
+    configData.welcomeRU = document.getElementById('cfgWelcomeRU').innerHTML.trim().replace(/<br\s*\/?>$/i,'').trim();
   } else if (section==='contacts') {
     configData.contacts = {
       whatsapp: document.getElementById('cfgWhatsapp').value.trim(),
