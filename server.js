@@ -37,11 +37,13 @@ try {
       chat_id     INTEGER NOT NULL,
       text        TEXT,
       answered_by TEXT DEFAULT 'faq',
+      answer      TEXT,
       created_at  TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
     CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
   `);
+  try { db.prepare('ALTER TABLE messages ADD COLUMN answer TEXT').run(); } catch {}
   console.log('SQLite инициализирована:', DB_PATH);
 } catch (e) {
   console.warn('better-sqlite3 не установлен — логирование пользователей отключено. Установите: npm install better-sqlite3');
@@ -67,10 +69,11 @@ function dbUpsertUser(chatId, username, firstName, lastName) {
   } catch(e) { console.error('[DB] upsert error:', e.message); }
 }
 
-function dbLogMessage(chatId, text, answeredBy) {
+function dbLogMessage(chatId, text, answeredBy, answer) {
   if (!db) return;
-  db.prepare(`INSERT INTO messages (chat_id, text, answered_by, created_at) VALUES (?, ?, ?, ?)`)
-    .run(chatId, text || '', answeredBy || 'faq', new Date().toISOString());
+  const clean = answer ? answer.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : null;
+  db.prepare(`INSERT INTO messages (chat_id, text, answered_by, answer, created_at) VALUES (?, ?, ?, ?, ?)`)
+    .run(chatId, text || '', answeredBy || 'faq', clean || null, new Date().toISOString());
 }
 
 function dbGetUsers({ limit = 50, offset = 0, search = '' } = {}) {
@@ -91,7 +94,7 @@ function dbGetUsers({ limit = 50, offset = 0, search = '' } = {}) {
 function dbGetUserMessages(chatId, limit = 50) {
   if (!db) return [];
   return db.prepare(`
-    SELECT text, answered_by, created_at FROM messages
+    SELECT text, answered_by, answer, created_at FROM messages
     WHERE chat_id = ? ORDER BY created_at DESC LIMIT ?
   `).all(chatId, limit);
 }
@@ -343,7 +346,7 @@ const server = http.createServer(async (req, res) => {
     saveStats(s);
     if (body.tgUser?.id) {
       dbUpsertUser(body.tgUser.id, body.tgUser.username, body.tgUser.first_name, body.tgUser.last_name);
-      dbLogMessage(body.tgUser.id, body.text || body.topic || '', body.type || 'faq');
+      dbLogMessage(body.tgUser.id, body.text || body.topic || '', body.type || 'faq', body.answer || null);
     }
     json(res, 200, { ok: true });
     return;
@@ -516,7 +519,7 @@ const server = http.createServer(async (req, res) => {
           one_time_keyboard: true
         }
       });
-      dbLogMessage(chatId, text, 'greeting');
+      dbLogMessage(chatId, text, 'greeting', '👋 Привет! Я помощник налогового консультанта Александра Танцюры из Аликанте. Рад помочь разобраться в испанских налогах и финансовых вопросах. Задавайте ваш вопрос — постараюсь объяснить всё просто и понятно!');
       return;
     }
     let best = null, bestScore = 0;
@@ -534,7 +537,7 @@ const server = http.createServer(async (req, res) => {
       const sf = loadStats(); sf.total++; sf.faq++;
       if (best.title) sf.topics[best.title] = (sf.topics[best.title] || 0) + 1;
       saveStats(sf);
-      dbLogMessage(chatId, text, 'faq');
+      dbLogMessage(chatId, text, 'faq', plain);
       return;
     }
 
@@ -560,7 +563,7 @@ const server = http.createServer(async (req, res) => {
     });
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
     const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
-    dbLogMessage(chatId, text, 'ai');
+    dbLogMessage(chatId, text, 'ai', reply);
     return;
   }
 

@@ -539,7 +539,7 @@ async function sendFaqById(id) {
   await new Promise(r => setTimeout(r, 600));
   hideTyping();
   appendMessage(entry.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром' });
-  trackQuestion(entry.topic, 'faq', label);
+  trackQuestion(entry.topic, 'faq', label, entry.answer);
   saveHistory('bot', entry.answer);
   isLoading = false;
   document.getElementById('sendBtn').disabled = false;
@@ -557,14 +557,14 @@ let stats = JSON.parse(localStorage.getItem('botStats') || '{"total":0,"faq":0,"
 
 function saveStats() { localStorage.setItem('botStats', JSON.stringify(stats)); }
 
-function trackQuestion(topic, type, text) {
+function trackQuestion(topic, type, text, answer) {
   stats.total++;
   if (type === 'faq') stats.faq++; else stats.ai++;
   if (topic) stats.topics[topic] = (stats.topics[topic] || 0) + 1;
   saveStats();
   updateStatsUI();
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  fetch('/api/stats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, topic, text, tgUser }) }).catch(() => {});
+  fetch('/api/stats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, topic, text, answer, tgUser }) }).catch(() => {});
 }
 
 function updateStatsUI() {
@@ -700,7 +700,7 @@ async function sendMessage() {
     await new Promise(r => setTimeout(r, 700));
     hideTyping();
     appendMessage(faqItem.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром' });
-    trackQuestion(faqItem.topic, 'faq', text);
+    trackQuestion(faqItem.topic, 'faq', text, faqItem.answer);
     saveHistory('bot', faqItem.answer);
     isLoading = false;
     document.getElementById('sendBtn').disabled = false;
@@ -725,7 +725,7 @@ async function sendMessage() {
     hideTyping();
     const reply = mdToHtml(data.content?.[0]?.text || TEXTS[currentLang].error);
     appendMessage(reply, 'bot', { cls: 'badge-ai', label: '🤖 Авто-ответ' });
-    trackQuestion('Другое', 'ai', text);
+    trackQuestion('Другое', 'ai', text, data.content?.[0]?.text || '');
     saveHistory('bot', reply);
   } catch (err) {
     hideTyping();
