@@ -328,6 +328,9 @@ function normalizeEntry(body, id) {
 
 // ── Server ────────────────────────────────────────────────────────────────────
 
+process.on('unhandledRejection', (reason) => console.error('[CRASH] unhandledRejection:', reason));
+process.on('uncaughtException',  (err)    => console.error('[CRASH] uncaughtException:', err));
+
 const server = http.createServer(async (req, res) => {
   const urlPath = req.url.split('?')[0];
 
