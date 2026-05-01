@@ -608,7 +608,7 @@ const server = http.createServer(async (req, res) => {
       if (!questionPart) {
         // Pure greeting — in away mode stay silent (Telegram's own away message is enough)
         if (loadConfig().bizAwayMode) return;
-        const greetingText = '👋 Привет! Я помощник Александра Танцюры по налоговым вопросам в Испании. Задайте ваш вопрос — отвечу сразу!';
+        const greetingText = '👋 Привет! Я помощник Александра Танцюры по налоговым вопросам в Испании. Задайте ваш вопрос — отвечу сразу!\n\nИли откройте полную версию: https://t.me/TantsiuraTax_Bot';
         await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: greetingText });
         dbLogMessage(chatId, text, 'greeting', greetingText);
         return;
