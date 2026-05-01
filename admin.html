@@ -445,7 +445,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th>Пользователь</th><th>Username</th><th>Chat ID</th><th>Первый визит</th><th>Последний визит</th><th>Сообщений</th><th>История</th>
+              <th>Пользователь</th><th>Username</th><th>Chat ID</th><th>Первый визит</th><th>Последний визит</th><th>Сообщений</th><th>История</th><th title="Ausschluss vom Business-Chat">🚫 Biz</th>
             </tr></thead>
             <tbody id="usersBody"></tbody>
           </table>
@@ -645,6 +645,22 @@ function renderAiLogList(items, total) {
 }
 
 function onAiLogSearch(v) { ailogSearch = v.trim(); loadAiLog(0); }
+
+// ── User exclude (Business Chat only) ────────────────────────────────────────
+
+async function toggleExclude(chatId, currentExcluded, btn) {
+  const newExcluded = currentExcluded ? 0 : 1;
+  try {
+    await fetch(`/api/admin/users/${chatId}/exclude`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ excluded: newExcluded })
+    });
+    btn.textContent   = newExcluded ? '🚫 Ausgeschl.' : 'Ausschließen';
+    btn.style.color   = newExcluded ? 'var(--red)' : '';
+    btn.style.borderColor = newExcluded ? 'var(--red-border)' : '';
+    btn.setAttribute('onclick', `toggleExclude(${chatId}, ${newExcluded}, this)`);
+  } catch { alert('Fehler beim Speichern'); }
+}
 
 if (token) loadAndShow();
 
@@ -1373,7 +1389,7 @@ async function loadUsers(offset = 0) {
 function renderUsersTable(users) {
   const tbody = document.getElementById('usersBody');
   if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">${usersSearch ? 'Ничего не найдено' : 'Пользователей пока нет — они появятся как только кто-то напишет боту.'}</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">${usersSearch ? 'Ничего не найдено' : 'Пользователей пока нет — они появятся как только кто-то напишет боту.'}</div></td></tr>`;
     return;
   }
   tbody.innerHTML = users.map(u => {
@@ -1387,6 +1403,7 @@ function renderUsersTable(users) {
       <td style="color:var(--muted);font-size:12px">${fmtDate(u.last_seen, true)}</td>
       <td><span style="font-weight:600">${u.msg_count}</span></td>
       <td><button class="btn-edit" onclick="openUserMessages(${u.chat_id}, '${escHtml(name)}')">Открыть</button></td>
+      <td><button class="btn-ghost-sm" style="${u.excluded ? 'color:var(--red);border-color:var(--red-border)' : ''}" onclick="toggleExclude(${u.chat_id}, ${u.excluded ? 1 : 0}, this)">${u.excluded ? '🚫 Ausgeschl.' : 'Ausschließen'}</button></td>
     </tr>`;
   }).join('');
 }

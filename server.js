@@ -30,7 +30,8 @@ try {
       last_name   TEXT,
       first_seen  TEXT NOT NULL,
       last_seen   TEXT NOT NULL,
-      msg_count   INTEGER DEFAULT 0
+      msg_count   INTEGER DEFAULT 0,
+      excluded    INTEGER DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS messages (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,6 +45,7 @@ try {
     CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
   `);
   try { db.prepare('ALTER TABLE messages ADD COLUMN answer TEXT').run(); } catch {}
+  try { db.prepare('ALTER TABLE users ADD COLUMN excluded INTEGER DEFAULT 0').run(); } catch {}
   console.log('SQLite инициализирована:', DB_PATH);
 } catch (e) {
   console.warn('better-sqlite3 не установлен — логирование пользователей отключено. Установите: npm install better-sqlite3');
@@ -85,7 +87,7 @@ function dbGetUsers({ limit = 50, offset = 0, search = '' } = {}) {
   const params = search ? [like, like, like, like] : [];
   const total = db.prepare(`SELECT COUNT(*) as cnt FROM users ${where}`).get(...params).cnt;
   const users = db.prepare(`
-    SELECT chat_id, username, first_name, last_name, first_seen, last_seen, msg_count
+    SELECT chat_id, username, first_name, last_name, first_seen, last_seen, msg_count, excluded
     FROM users ${where} ORDER BY last_seen DESC LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
   return { users, total };
@@ -554,23 +556,28 @@ const server = http.createServer(async (req, res) => {
 
     const bizExtra = bizConnId ? { business_connection_id: bizConnId } : {};
 
+    // Business context: check exclusion list (only for Business Chat, not direct bot)
+    if (bizConnId && db) {
+      const userRow = db.prepare('SELECT excluded FROM users WHERE chat_id = ?').get(chatId);
+      if (userRow?.excluded) return;
+    }
+
     // FAQ search
     const faqList = (loadFaq().ru || []);
     const lower = text.toLowerCase();
 
     const greetings = ['привет', 'здравствуй', 'добрый', 'hallo', 'hello', 'hi', 'хай', 'салют', 'buenos'];
     const isGreeting = text === '/start' || greetings.some(g => lower.startsWith(g));
+    const queryText = text;
+    const queryLower = lower;
 
-    // Business context: strip greeting prefix, keep the question part if any
-    let queryText = text;
     if (isGreeting && bizConnId) {
-      if (text === '/start') return;
-      const matched = greetings.find(g => lower.startsWith(g));
-      const rest = matched ? text.replace(/^\S+/, '').replace(/^[\s,!.?]+/, '').trim() : '';
-      if (!rest) return; // pure greeting — Alexander replies personally
-      queryText = rest;
+      // Business greeting: simple text, no keyboard
+      const greetingText = '👋 Привет! Я помощник Александра Танцюры по налоговым вопросам в Испании. Задайте ваш вопрос — отвечу сразу!';
+      await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: greetingText });
+      dbLogMessage(chatId, text, 'greeting', greetingText);
+      return;
     }
-    const queryLower = queryText.toLowerCase();
 
     if (isGreeting) {
       await tg('sendMessage', { chat_id: chatId,
@@ -656,6 +663,17 @@ const server = http.createServer(async (req, res) => {
     const offset = parseInt(qs.get('offset') || '0');
     const search = qs.get('search') || '';
     json(res, 200, dbGetUsers({ limit, offset, search }));
+    return;
+  }
+
+  // ── Admin: exclude/include user from Business Chat ────────────────────────
+  if (req.method === 'POST' && urlPath.match(/^\/api\/admin\/users\/\d+\/exclude$/)) {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const chatId  = parseInt(urlPath.split('/')[4]);
+    const body    = await readJsonBody(req);
+    const excluded = body.excluded ? 1 : 0;
+    if (db) db.prepare('UPDATE users SET excluded = ? WHERE chat_id = ?').run(excluded, chatId);
+    json(res, 200, { ok: true, excluded });
     return;
   }
 
