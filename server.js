@@ -568,15 +568,25 @@ const server = http.createServer(async (req, res) => {
 
     const greetings = ['привет', 'здравствуй', 'добрый', 'hallo', 'hello', 'hi', 'хай', 'салют', 'buenos'];
     const isGreeting = text === '/start' || greetings.some(g => lower.startsWith(g));
-    const queryText = text;
-    const queryLower = lower;
+    let queryText = text;
+    let queryLower = lower;
+    let bizGreetPrefix = false;
 
     if (isGreeting && bizConnId) {
-      // Business greeting: simple text, no keyboard
-      const greetingText = '👋 Привет! Я помощник Александра Танцюры по налоговым вопросам в Испании. Задайте ваш вопрос — отвечу сразу!';
-      await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: greetingText });
-      dbLogMessage(chatId, text, 'greeting', greetingText);
-      return;
+      if (text === '/start') return;
+      // Extract question part after the greeting word
+      const questionPart = text.replace(/^\S+/, '').replace(/^[\s,!.?,]+/, '').trim();
+      if (!questionPart) {
+        // Pure greeting — respond and stop
+        const greetingText = '👋 Привет! Я помощник Александра Танцюры по налоговым вопросам в Испании. Задайте ваш вопрос — отвечу сразу!';
+        await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: greetingText });
+        dbLogMessage(chatId, text, 'greeting', greetingText);
+        return;
+      }
+      // Greeting + question — process question, prepend greeting to answer
+      queryText  = questionPart;
+      queryLower = questionPart.toLowerCase();
+      bizGreetPrefix = true;
     }
 
     if (isGreeting) {
@@ -607,7 +617,8 @@ const server = http.createServer(async (req, res) => {
         .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1').replace(/<[^>]+>/g, '').trim();
       const faqMarkup = bizConnId ? undefined
         : { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
-      await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: plain + '\n\n✅ Проверено Александром', parse_mode: 'Markdown',
+      const faqText = (bizGreetPrefix ? '👋 Привет!\n\n' : '') + plain + '\n\n✅ Проверено Александром';
+      await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: faqText, parse_mode: 'Markdown',
         ...(faqMarkup ? { reply_markup: faqMarkup } : {})
       });
       const sf = loadStats(); sf.total++; sf.faq++;
@@ -639,7 +650,8 @@ const server = http.createServer(async (req, res) => {
     if (!reply || /^\[?SKIP\]?$/i.test(reply.trim())) { console.log('[TG] SKIP — kein Senden'); return; }
     const aiMarkup = bizConnId ? undefined
       : { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
-    const sendRes = await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: reply + '\n\n💬 Авто-ответ',
+    const aiText = (bizGreetPrefix ? '👋 Привет!\n\n' : '') + reply + '\n\n💬 Авто-ответ';
+    const sendRes = await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: aiText,
       ...(aiMarkup ? { reply_markup: aiMarkup } : {})
     });
     console.log('[TG] sendMessage ok:', sendRes?.ok, sendRes?.description);
