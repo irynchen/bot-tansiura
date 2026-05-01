@@ -455,24 +455,13 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <div class="cfg-panel" id="cfgTab-business">
           <div class="cfg-field">
             <label>Авто-ответ в Business-чате</label>
-            <div class="hint">Управляет ответами бота в личных чатах Александра (Telegram Business). Отключите, чтобы бот полностью замолчал в Direct Messages. Обычный бот (@TantsiuraTax_Bot) продолжает работать.</div>
+            <div class="hint">Отключите, чтобы бот полностью замолчал в личных чатах Александра. Используйте также когда включаете «Нет на месте» в Telegram — бот не будет мешать. Обычный бот (@TantsiuraTax_Bot) продолжает работать в любом случае.</div>
             <div style="display:flex;align-items:center;gap:12px;margin-top:8px;cursor:pointer" onclick="toggleBizSwitch()">
               <span class="tog-track" id="cfgBizTrack" style="position:relative;display:inline-block;width:44px;height:24px;border-radius:12px;background:var(--muted);transition:background .2s;flex-shrink:0">
                 <span class="tog-thumb" style="position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
               </span>
               <input type="checkbox" id="cfgBizEnabled" style="display:none">
               <span id="cfgBizLabel" style="font-size:14px;font-weight:500">Включён</span>
-            </div>
-          </div>
-          <div class="cfg-field" style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
-            <label>Режим «Не на месте»</label>
-            <div class="hint">Включите вместе с автоответом Telegram. Бот полностью замолчит в Business-чате — клиент перейдёт по ссылке в вашем тексте «Не на месте». Выключите, когда вернётесь — бот снова отвечает как обычно.</div>
-            <div style="display:flex;align-items:center;gap:12px;margin-top:8px;cursor:pointer" onclick="toggleAwayModeSwitch()">
-              <span class="tog-track" id="cfgAwayModeTrack" style="position:relative;display:inline-block;width:44px;height:24px;border-radius:12px;background:var(--muted);transition:background .2s;flex-shrink:0">
-                <span class="tog-thumb" style="position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
-              </span>
-              <input type="checkbox" id="cfgAwayModeEnabled" style="display:none">
-              <span id="cfgAwayModeLabel" style="font-size:14px;font-weight:500">Выключен</span>
             </div>
           </div>
           <div class="cfg-field" style="margin-top:20px">
@@ -1247,8 +1236,6 @@ function populateConfigForm() {
   const bizEnabled = c.bizBotEnabled !== false;
   document.getElementById('cfgBizEnabled').checked = bizEnabled;
   updateBizToggle();
-  document.getElementById('cfgAwayModeEnabled').checked = !!c.bizAwayMode;
-  updateAwayModeToggle();
   renderAwayMsgEditor();
   renderQrEditor();
   renderCatEditor();
@@ -1270,21 +1257,6 @@ function toggleBizSwitch() {
   updateBizToggle();
 }
 
-function updateAwayModeToggle() {
-  const on = document.getElementById('cfgAwayModeEnabled').checked;
-  const track = document.getElementById('cfgAwayModeTrack');
-  const thumb = track.querySelector('.tog-thumb');
-  track.style.background = on ? '#f59e0b' : 'var(--muted)';
-  thumb.style.left = on ? '22px' : '2px';
-  document.getElementById('cfgAwayModeLabel').textContent = on ? '🌙 Не на месте — бот не приветствует' : 'Выключен';
-  document.getElementById('cfgAwayModeLabel').style.color = on ? '#f59e0b' : '';
-}
-
-function toggleAwayModeSwitch() {
-  const cb = document.getElementById('cfgAwayModeEnabled');
-  cb.checked = !cb.checked;
-  updateAwayModeToggle();
-}
 
 function renderAwayMsgEditor() {
   const msgs = configData.awayMessages || [];
@@ -1532,7 +1504,6 @@ async function saveConfigSection(section) {
     configData.modelAdmin   = document.getElementById('cfgModelAdmin').value;
   } else if (section==='business') {
     configData.bizBotEnabled = document.getElementById('cfgBizEnabled').checked;
-    configData.bizAwayMode   = document.getElementById('cfgAwayModeEnabled').checked;
     configData.awayMessages  = collectAwayMessages();
   }
   try {
