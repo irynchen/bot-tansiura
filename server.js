@@ -584,10 +584,12 @@ const server = http.createServer(async (req, res) => {
     });
     const reply = aiRes.content?.[0]?.text || '';
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
-    if (!reply || reply.trim() === '[SKIP]') return;
-    await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: reply + '\n\n💬 Авто-ответ',
+    console.log('[TG] AI reply:', JSON.stringify(reply.slice(0, 80)), '| biz:', !!bizConnId);
+    if (!reply || reply.trim() === '[SKIP]') { console.log('[TG] SKIP — kein Senden'); return; }
+    const sendRes = await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: reply + '\n\n💬 Авто-ответ',
       reply_markup: { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] }
     });
+    console.log('[TG] sendMessage ok:', sendRes?.ok, sendRes?.description);
     const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
     dbLogMessage(chatId, text, 'ai', reply);
     return;
