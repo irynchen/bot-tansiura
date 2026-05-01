@@ -501,7 +501,8 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && urlPath === '/api/telegram/webhook') {
     const body = await readJsonBody(req);
     res.writeHead(200); res.end('ok');
-    console.log('[TG] update keys:', Object.keys(body).join(', '), '| biz_msg:', !!body.business_message, '| biz_conn:', !!body.business_connection);
+    const _msg0 = body.message || body.business_message;
+    console.log('[TG] update:', Object.keys(body).join(','), '| from:', _msg0?.from?.id, '| connId:', _msg0?.business_connection_id || 'none', '| text:', JSON.stringify((_msg0?.text||'').slice(0,40)));
 
     // Store business connection owner IDs (connection_id → owner user_id)
     if (body.business_connection?.id && body.business_connection?.user?.id) {
