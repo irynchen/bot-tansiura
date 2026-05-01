@@ -331,6 +331,8 @@ function normalizeEntry(body, id) {
 process.on('unhandledRejection', (reason) => console.error('[CRASH] unhandledRejection:', reason));
 process.on('uncaughtException',  (err)    => console.error('[CRASH] uncaughtException:', err));
 
+const bizOwners = new Map(); // business_connection_id → owner Telegram user_id
+
 const server = http.createServer(async (req, res) => {
   const urlPath = req.url.split('?')[0];
 
@@ -501,12 +503,40 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200); res.end('ok');
     console.log('[TG] update keys:', Object.keys(body).join(', '), '| biz_msg:', !!body.business_message, '| biz_conn:', !!body.business_connection);
 
+    // Store business connection owner IDs (connection_id → owner user_id)
+    if (body.business_connection?.id && body.business_connection?.user?.id) {
+      bizOwners.set(body.business_connection.id, body.business_connection.user.id);
+    }
+
     const msg       = body.message || body.business_message;
     const bizConnId = body.business_message?.business_connection_id || null;
     if (!msg?.chat?.id) return;
     const chatId = msg.chat.id;
     const text   = (msg.text || '').trim();
     if (!text) return;
+
+    // Skip messages sent BY the business account owner (Alexander's own messages)
+    if (bizConnId && msg.from?.id) {
+      let ownerId = bizOwners.get(bizConnId);
+      if (!ownerId) {
+        // Fetch connection info if not cached
+        try {
+          const connData = JSON.stringify({ business_connection_id: bizConnId });
+          const connRes = await new Promise((resolve, reject) => {
+            const r = https.request({ hostname:'api.telegram.org', path:`/bot${TG_TOKEN}/getBusinessConnection`, method:'POST',
+              headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(connData)} }, rs => {
+              let d=''; rs.on('data',c=>d+=c); rs.on('end',()=>resolve(JSON.parse(d)));
+            });
+            r.on('error', reject); r.write(connData); r.end();
+          });
+          if (connRes.result?.user?.id) {
+            bizOwners.set(bizConnId, connRes.result.user.id);
+            ownerId = connRes.result.user.id;
+          }
+        } catch {}
+      }
+      if (ownerId && msg.from.id === ownerId) return;
+    }
 
     dbUpsertUser(chatId, msg.chat.username, msg.chat.first_name, msg.chat.last_name);
 
@@ -590,7 +620,7 @@ const server = http.createServer(async (req, res) => {
     const reply = aiRes.content?.[0]?.text || '';
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
     console.log('[TG] AI reply:', JSON.stringify(reply.slice(0, 80)), '| biz:', !!bizConnId);
-    if (!reply || reply.trim() === '[SKIP]') { console.log('[TG] SKIP — kein Senden'); return; }
+    if (!reply || /^\[?SKIP\]?$/i.test(reply.trim())) { console.log('[TG] SKIP — kein Senden'); return; }
     const aiMarkup = bizConnId ? undefined
       : { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
     const sendRes = await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: reply + '\n\n💬 Авто-ответ',
