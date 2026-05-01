@@ -465,12 +465,14 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
             </div>
           </div>
           <div class="cfg-field" style="margin-top:20px">
-            <label>Сообщения «Не на месте»</label>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <label style="margin:0">Сообщения «Не на месте»</label>
+              <button class="btn-save" style="padding:7px 20px;font-size:13px" onclick="saveConfigSection('business')">Сохранить</button>
+            </div>
             <div class="hint">Готовые тексты на разные случаи — выберите нужный и нажмите <strong>Копировать</strong>, чтобы вставить в Telegram.</div>
-            <div id="awayMsgEditor" style="margin-top:10px;display:flex;flex-direction:column;gap:10px"></div>
+            <div id="awayMsgEditor" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
             <button class="btn-add-qr" style="margin-top:8px" onclick="addAwayMsg()">＋ Добавить текст</button>
           </div>
-          <div class="cfg-save-bar"><button class="btn-save" onclick="saveConfigSection('business')">Сохранить</button></div>
         </div>
       </div>
 
