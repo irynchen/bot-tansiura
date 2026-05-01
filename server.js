@@ -577,8 +577,12 @@ const server = http.createServer(async (req, res) => {
 
     if (isGreeting && bizConnId) {
       if (text === '/start') return;
-      // Extract question part after the greeting word
-      const questionPart = text.replace(/^\S+/, '').replace(/^[\s,!.?,]+/, '').trim();
+      // Remove greeting word (incl. suffix like -те: здравствуй→здравствуйте)
+      const matchedG = greetings.find(g => lower.startsWith(g)) || '';
+      let afterGreet = text.replace(new RegExp('^' + matchedG + '\\w*', 'i'), '').replace(/^[\s,!.?,]+/, '').trim();
+      // Remove time-of-day words that follow "добрый" (вечер/день/утро/ночь)
+      afterGreet = afterGreet.replace(/^(вечер|день|утро|ночь|дня)\b\s*/i, '').replace(/^[\s,!.?,]+/, '').trim();
+      const questionPart = afterGreet;
       if (!questionPart) {
         // Pure greeting — respond and stop
         const greetingText = '👋 Привет! Я помощник Александра Танцюры по налоговым вопросам в Испании. Задайте ваш вопрос — отвечу сразу!';
@@ -592,7 +596,7 @@ const server = http.createServer(async (req, res) => {
       bizGreetPrefix = true;
     }
 
-    if (isGreeting) {
+    if (isGreeting && !bizConnId) {
       await tg('sendMessage', { chat_id: chatId,
         text: '👋 Привет! Я помощник налогового консультанта Александра Танцюры из Аликанте. Рад помочь разобраться в испанских налогах и финансовых вопросах. Задавайте ваш вопрос — постараюсь объяснить всё просто и понятно!\n\nМожете задать вопрос прямо здесь или выбрать тему ниже 👇',
         reply_markup: {
