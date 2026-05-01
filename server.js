@@ -560,8 +560,16 @@ const server = http.createServer(async (req, res) => {
     const greetings = ['привет', 'здравствуй', 'добрый', 'hallo', 'hello', 'hi', 'хай', 'салют', 'buenos'];
     const isGreeting = text === '/start' || greetings.some(g => lower.startsWith(g));
 
-    // Business context: skip greetings — Alexander replies personally
-    if (isGreeting && bizConnId) return;
+    // Business context: strip greeting prefix, keep the question part if any
+    let queryText = text;
+    if (isGreeting && bizConnId) {
+      if (text === '/start') return;
+      const matched = greetings.find(g => lower.startsWith(g));
+      const rest = matched ? text.slice(matched.length).replace(/^[\s,!.?]+/, '').trim() : '';
+      if (!rest) return; // pure greeting — Alexander replies personally
+      queryText = rest;
+    }
+    const queryLower = queryText.toLowerCase();
 
     if (isGreeting) {
       await tg('sendMessage', { chat_id: chatId,
@@ -582,7 +590,7 @@ const server = http.createServer(async (req, res) => {
     }
     let best = null, bestScore = 0;
     for (const item of faqList) {
-      const score = (item.keys || []).filter(k => lower.includes(k.toLowerCase())).length;
+      const score = (item.keys || []).filter(k => queryLower.includes(k.toLowerCase())).length;
       if (score > bestScore) { bestScore = score; best = item; }
     }
     if (best) {
@@ -609,7 +617,7 @@ const server = http.createServer(async (req, res) => {
     }
     await tg('sendChatAction', { ...bizExtra, chat_id: chatId, action: 'typing' });
     const sysPrompt = 'Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ `). Не предлагай сразу писать лично — сначала помоги с вопросом. Если вопрос явно не связан с налогами, финансами или бухгалтерией — ответь строго одним словом: [SKIP]';
-    const aiBody = JSON.stringify({ model: getModel('client'), max_tokens: 600, system: sysPrompt, messages: [{ role:'user', content: text }] });
+    const aiBody = JSON.stringify({ model: getModel('client'), max_tokens: 600, system: sysPrompt, messages: [{ role:'user', content: queryText }] });
     const aiRes  = await new Promise((resolve, reject) => {
       const r = https.request({ hostname:'api.anthropic.com', path:'/v1/messages', method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','Content-Length':Buffer.byteLength(aiBody)} }, rs => {
