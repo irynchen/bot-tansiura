@@ -13,6 +13,101 @@ const PORT = 3000;
 const FAQ_PATH    = path.join(__dirname, 'faq.json');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const STATS_PATH  = path.join(__dirname, 'stats.json');
+const DB_PATH     = path.join(__dirname, 'bot.db');
+
+// ── SQLite setup ──────────────────────────────────────────────────────────────
+
+let db;
+try {
+  const Database = require('better-sqlite3');
+  db = new Database(DB_PATH);
+  db.pragma('journal_mode = WAL');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      chat_id     INTEGER PRIMARY KEY,
+      username    TEXT,
+      first_name  TEXT,
+      last_name   TEXT,
+      first_seen  TEXT NOT NULL,
+      last_seen   TEXT NOT NULL,
+      msg_count   INTEGER DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS messages (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_id     INTEGER NOT NULL,
+      text        TEXT,
+      answered_by TEXT DEFAULT 'faq',
+      created_at  TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+    CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+  `);
+  console.log('SQLite инициализирована:', DB_PATH);
+} catch (e) {
+  console.warn('better-sqlite3 не установлен — логирование пользователей отключено. Установите: npm install better-sqlite3');
+  db = null;
+}
+
+// ── DB helpers ────────────────────────────────────────────────────────────────
+
+function dbUpsertUser(chatId, username, firstName, lastName) {
+  if (!db) return;
+  const now = new Date().toISOString();
+  try {
+    db.prepare(`
+      INSERT INTO users (chat_id, username, first_name, last_name, first_seen, last_seen, msg_count)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+      ON CONFLICT(chat_id) DO UPDATE SET
+        username   = excluded.username,
+        first_name = excluded.first_name,
+        last_name  = excluded.last_name,
+        last_seen  = excluded.last_seen,
+        msg_count  = msg_count + 1
+    `).run(chatId, username || null, firstName || null, lastName || null, now, now);
+  } catch(e) { console.error('[DB] upsert error:', e.message); }
+}
+
+function dbLogMessage(chatId, text, answeredBy) {
+  if (!db) return;
+  db.prepare(`INSERT INTO messages (chat_id, text, answered_by, created_at) VALUES (?, ?, ?, ?)`)
+    .run(chatId, text || '', answeredBy || 'faq', new Date().toISOString());
+}
+
+function dbGetUsers({ limit = 50, offset = 0, search = '' } = {}) {
+  if (!db) return { users: [], total: 0 };
+  const like = `%${search}%`;
+  const where = search
+    ? `WHERE username LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR CAST(chat_id AS TEXT) LIKE ?`
+    : '';
+  const params = search ? [like, like, like, like] : [];
+  const total = db.prepare(`SELECT COUNT(*) as cnt FROM users ${where}`).get(...params).cnt;
+  const users = db.prepare(`
+    SELECT chat_id, username, first_name, last_name, first_seen, last_seen, msg_count
+    FROM users ${where} ORDER BY last_seen DESC LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+  return { users, total };
+}
+
+function dbGetUserMessages(chatId, limit = 50) {
+  if (!db) return [];
+  return db.prepare(`
+    SELECT text, answered_by, created_at FROM messages
+    WHERE chat_id = ? ORDER BY created_at DESC LIMIT ?
+  `).all(chatId, limit);
+}
+
+function dbGetUserStats() {
+  if (!db) return { total: 0, active_today: 0, active_week: 0, new_today: 0 };
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const week  = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  return {
+    total:        db.prepare(`SELECT COUNT(*) as n FROM users`).get().n,
+    active_today: db.prepare(`SELECT COUNT(*) as n FROM users WHERE last_seen >= ?`).get(today).n,
+    active_week:  db.prepare(`SELECT COUNT(*) as n FROM users WHERE last_seen >= ?`).get(week).n,
+    new_today:    db.prepare(`SELECT COUNT(*) as n FROM users WHERE first_seen >= ?`).get(today).n,
+  };
+}
 
 const STATIC_TYPES = {
   '.html': 'text/html; charset=utf-8', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -375,14 +470,17 @@ const server = http.createServer(async (req, res) => {
 
   // ── Telegram webhook ──────────────────────────────────────────────────────
   if (req.method === 'POST' && urlPath === '/api/telegram/webhook') {
-    res.writeHead(200); res.end('ok');
-    if (!TG_TOKEN) return;
     const body = await readJsonBody(req);
+    res.writeHead(200); res.end('ok');
     const msg = body.message;
     if (!msg?.chat?.id) return;
     const chatId = msg.chat.id;
     const text   = (msg.text || '').trim();
     if (!text) return;
+
+    dbUpsertUser(chatId, msg.chat.username, msg.chat.first_name, msg.chat.last_name);
+
+    if (!TG_TOKEN) return;
 
     const tg = (method, payload) => new Promise((resolve, reject) => {
       const data = JSON.stringify(payload);
@@ -431,6 +529,7 @@ const server = http.createServer(async (req, res) => {
       const sf = loadStats(); sf.total++; sf.faq++;
       if (best.title) sf.topics[best.title] = (sf.topics[best.title] || 0) + 1;
       saveStats(sf);
+      dbLogMessage(chatId, text, 'faq');
       return;
     }
 
@@ -456,6 +555,33 @@ const server = http.createServer(async (req, res) => {
     });
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
     const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
+    dbLogMessage(chatId, text, 'ai');
+    return;
+  }
+
+  // ── Admin: user stats summary ─────────────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/admin/user-stats') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    json(res, 200, dbGetUserStats());
+    return;
+  }
+
+  // ── Admin: users list ─────────────────────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/admin/users') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const qs     = new URLSearchParams(req.url.split('?')[1] || '');
+    const limit  = Math.min(parseInt(qs.get('limit')  || '50'), 200);
+    const offset = parseInt(qs.get('offset') || '0');
+    const search = qs.get('search') || '';
+    json(res, 200, dbGetUsers({ limit, offset, search }));
+    return;
+  }
+
+  // ── Admin: messages for one user ──────────────────────────────────────────
+  if (req.method === 'GET' && urlPath.startsWith('/api/admin/users/') && urlPath.endsWith('/messages')) {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const chatId = parseInt(urlPath.split('/')[4]);
+    json(res, 200, dbGetUserMessages(chatId, 50));
     return;
   }
 

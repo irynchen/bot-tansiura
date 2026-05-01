@@ -285,6 +285,10 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <span class="nav-icon">📝</span> FAQ-статьи
         <span class="nav-badge" id="navBadge">0</span>
       </button>
+      <button class="nav-item" id="navUsers"  onclick="showPage('users')">
+        <span class="nav-icon">👥</span> Пользователи
+        <span class="nav-badge" id="navUsersBadge">0</span>
+      </button>
       <button class="nav-item" id="navConfig" onclick="showPage('config')">
         <span class="nav-icon">⚙️</span> Настройки
       </button>
@@ -424,6 +428,26 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         </div>
       </div>
 
+      <!-- ══ Users page ══ -->
+      <div class="page" id="pageUsers">
+        <div class="stats-grid" id="userStatsCards"></div>
+        <div class="toolbar" style="margin-bottom:16px">
+          <div class="search-wrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" id="userSearchInput" placeholder="Поиск по имени, username или chat_id…" oninput="onUserSearch(this.value)">
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Пользователь</th><th>Username</th><th>Chat ID</th><th>Первый визит</th><th>Последний визит</th><th>Сообщений</th><th>История</th>
+            </tr></thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+        <div id="usersPager" style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:13px;color:var(--muted)"></div>
+      </div>
+
       <!-- ══ Stats page ══ -->
       <div class="page" id="pageStats">
         <div class="stats-grid" id="statsCards"></div>
@@ -454,6 +478,19 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
     </div>
   </div>
 </div>
+</div>
+
+<!-- User messages modal -->
+<div class="modal-backdrop" id="userMsgBackdrop" onclick="if(event.target===this)closeUserMessages()">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h2 id="userMsgTitle">История сообщений</h2>
+      <button class="modal-close" onclick="closeUserMessages()">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:460px;overflow-y:auto;padding:12px 20px">
+      <div id="userMsgList"></div>
+    </div>
+  </div>
 </div>
 
 <!-- FAQ Modal -->
@@ -571,13 +608,13 @@ async function loadAndShow() {
     serverStats = statsRes.ok ? await statsRes.json() : {};
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('mainScreen').style.display  = 'block';
-    renderTable(); populateConfigForm(); renderStats(); buildCategorySelect();
+    renderTable(); populateConfigForm(); renderStats(); buildCategorySelect(); loadUserStats();
   } catch { if (token) logout(); }
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-const PAGE_TITLES = { faq:'FAQ-статьи', config:'Настройки', stats:'Статистика' };
+const PAGE_TITLES = { faq:'FAQ-статьи', users:'Пользователи', config:'Настройки', stats:'Статистика' };
 
 function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -586,6 +623,7 @@ function showPage(page) {
   document.getElementById('nav' + page[0].toUpperCase() + page.slice(1)).classList.add('active');
   document.getElementById('pageTitle').textContent = PAGE_TITLES[page];
   if (page === 'stats') { fetch('/api/admin/stats',{headers:{'Authorization':`Bearer ${token}`}}).then(r=>r.json()).then(d=>{serverStats=d;renderStats();}); }
+  if (page === 'users') { loadUserStats(); loadUsers(0); }
 }
 
 function showCfgTab(tab) {
@@ -1204,6 +1242,121 @@ async function resetStats() {
     serverStats = await res.json();
     renderStats(); showToast('Статистика сброшена','success');
   } catch { showToast('Сервер недоступен','error'); }
+}
+
+// ── Users page ────────────────────────────────────────────────────────────────
+
+let usersOffset = 0;
+const USERS_LIMIT = 50;
+let usersSearch = '';
+let usersTotal  = 0;
+
+async function loadUserStats() {
+  try {
+    const res = await fetch('/api/admin/user-stats', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) return;
+    const s = await res.json();
+    document.getElementById('navUsersBadge').textContent = s.total || 0;
+    document.getElementById('userStatsCards').innerHTML = `
+      <div class="stat-card gold">
+        <div class="stat-num">${s.total}</div>
+        <div class="stat-label">Всего пользователей</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-num">${s.new_today}</div>
+        <div class="stat-label">Новых сегодня</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-num">${s.active_today}</div>
+        <div class="stat-label">Активных сегодня</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-num">${s.active_week}</div>
+        <div class="stat-label">Активных за 7 дней</div>
+      </div>`;
+  } catch {}
+}
+
+async function loadUsers(offset = 0) {
+  usersOffset = offset;
+  const params = new URLSearchParams({ limit: USERS_LIMIT, offset, search: usersSearch });
+  try {
+    const res = await fetch(`/api/admin/users?${params}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) return;
+    const data = await res.json();
+    usersTotal = data.total;
+    renderUsersTable(data.users);
+    renderUsersPager();
+  } catch {}
+}
+
+function renderUsersTable(users) {
+  const tbody = document.getElementById('usersBody');
+  if (!users.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">${usersSearch ? 'Ничего не найдено' : 'Пользователей пока нет — они появятся как только кто-то напишет боту.'}</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = users.map(u => {
+    const name  = [u.first_name, u.last_name].filter(Boolean).join(' ') || '—';
+    const uname = u.username ? `@${escHtml(u.username)}` : '<span style="color:var(--muted)">—</span>';
+    return `<tr>
+      <td style="font-weight:500">${escHtml(name)}</td>
+      <td>${uname}</td>
+      <td style="color:var(--muted);font-size:12px;font-family:monospace">${u.chat_id}</td>
+      <td style="color:var(--muted);font-size:12px">${fmtDate(u.first_seen)}</td>
+      <td style="color:var(--muted);font-size:12px">${fmtDate(u.last_seen)}</td>
+      <td><span style="font-weight:600">${u.msg_count}</span></td>
+      <td><button class="btn-edit" onclick="openUserMessages(${u.chat_id}, '${escHtml(name)}')">Открыть</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderUsersPager() {
+  const el = document.getElementById('usersPager');
+  const page  = Math.floor(usersOffset / USERS_LIMIT) + 1;
+  const pages = Math.ceil(usersTotal / USERS_LIMIT) || 1;
+  el.innerHTML = `
+    <button class="btn-ghost-sm" onclick="loadUsers(${usersOffset - USERS_LIMIT})" ${usersOffset === 0 ? 'disabled' : ''}>← Назад</button>
+    <span>Стр. ${page} / ${pages} · Всего: ${usersTotal}</span>
+    <button class="btn-ghost-sm" onclick="loadUsers(${usersOffset + USERS_LIMIT})" ${usersOffset + USERS_LIMIT >= usersTotal ? 'disabled' : ''}>Вперёд →</button>`;
+}
+
+function onUserSearch(v) { usersSearch = v.trim(); loadUsers(0); }
+
+async function openUserMessages(chatId, name) {
+  document.getElementById('userMsgTitle').textContent = `История: ${name}`;
+  document.getElementById('userMsgList').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px">Загрузка…</div>';
+  document.getElementById('userMsgBackdrop').classList.add('open');
+  try {
+    const res = await fetch(`/api/admin/users/${chatId}/messages`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const msgs = await res.json();
+    if (!msgs.length) {
+      document.getElementById('userMsgList').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px">Сообщений нет.</div>';
+      return;
+    }
+    document.getElementById('userMsgList').innerHTML = msgs.map(m => {
+      const badge = m.answered_by === 'ai'
+        ? `<span style="background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-border);border-radius:10px;font-size:10px;padding:1px 7px;margin-left:6px">AI</span>`
+        : `<span style="background:var(--green-bg);color:#15803d;border:1px solid var(--green-border);border-radius:10px;font-size:10px;padding:1px 7px;margin-left:6px">FAQ</span>`;
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:3px">${fmtDate(m.created_at, true)}${badge}</div>
+        <div style="font-size:14px">${escHtml(m.text || '—')}</div>
+      </div>`;
+    }).join('');
+  } catch {
+    document.getElementById('userMsgList').innerHTML = '<div style="color:var(--red);font-size:13px">Ошибка загрузки</div>';
+  }
+}
+
+function closeUserMessages() { document.getElementById('userMsgBackdrop').classList.remove('open'); }
+
+function fmtDate(iso, withTime = false) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric' });
+  if (!withTime) return date;
+  const time = d.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+  return `${date} ${time}`;
 }
 
 // ── Toast / utils ─────────────────────────────────────────────────────────────
