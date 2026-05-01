@@ -512,6 +512,7 @@ const server = http.createServer(async (req, res) => {
           one_time_keyboard: true
         }
       });
+      dbLogMessage(chatId, text, 'greeting');
       return;
     }
     let best = null, bestScore = 0;
