@@ -559,11 +559,10 @@ const server = http.createServer(async (req, res) => {
       const plain = best.answer
         .replace(/<br\s*\/?>/gi, '\n').replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
         .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1').replace(/<[^>]+>/g, '').trim();
-      const faqMarkup = bizConnId
-        ? { inline_keyboard: [[{ text: '🌐 Открыть бота', url: BOT_URL }]] }
+      const faqMarkup = bizConnId ? undefined
         : { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
       await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: plain + '\n\n✅ Проверено Александром', parse_mode: 'Markdown',
-        reply_markup: faqMarkup
+        ...(faqMarkup ? { reply_markup: faqMarkup } : {})
       });
       const sf = loadStats(); sf.total++; sf.faq++;
       if (best.title) sf.topics[best.title] = (sf.topics[best.title] || 0) + 1;
@@ -592,11 +591,10 @@ const server = http.createServer(async (req, res) => {
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
     console.log('[TG] AI reply:', JSON.stringify(reply.slice(0, 80)), '| biz:', !!bizConnId);
     if (!reply || reply.trim() === '[SKIP]') { console.log('[TG] SKIP — kein Senden'); return; }
-    const aiMarkup = bizConnId
-      ? { inline_keyboard: [[{ text: '🌐 Открыть бота', url: BOT_URL }]] }
+    const aiMarkup = bizConnId ? undefined
       : { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
     const sendRes = await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: reply + '\n\n💬 Авто-ответ',
-      reply_markup: aiMarkup
+      ...(aiMarkup ? { reply_markup: aiMarkup } : {})
     });
     console.log('[TG] sendMessage ok:', sendRes?.ok, sendRes?.description);
     const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
