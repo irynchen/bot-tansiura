@@ -569,6 +569,17 @@ const server = http.createServer(async (req, res) => {
     const faqList = (loadFaq().ru || []);
     const lower = text.toLowerCase();
 
+    // In Business Chat: skip contact/callback requests — Alexander replies personally
+    if (bizConnId) {
+      const contactPhrases = ['свяжитесь', 'свяжется', 'свяжись', 'перезвоните', 'перезвони', 'позвоните', 'позвони', 'напишите мне', 'напиши мне', 'хочу связаться', 'как связаться', 'контакты', 'contact me', 'call me'];
+      if (contactPhrases.some(p => lower.includes(p))) {
+        const replyText = 'Александр ответит вам лично в ближайшее время 🙂';
+        await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: replyText });
+        dbLogMessage(chatId, text, 'auto', replyText);
+        return;
+      }
+    }
+
     const greetings = ['привет', 'здравствуй', 'добрый', 'hallo', 'hello', 'hi', 'хай', 'салют', 'buenos'];
     const isGreeting = text === '/start' || greetings.some(g => lower.startsWith(g));
     let queryText = text;
