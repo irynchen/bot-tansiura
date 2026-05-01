@@ -341,6 +341,10 @@ const server = http.createServer(async (req, res) => {
     else if (body.type === 'ai') s.ai++;
     if (body.topic) s.topics[body.topic] = (s.topics[body.topic] || 0) + 1;
     saveStats(s);
+    if (body.tgUser?.id) {
+      dbUpsertUser(body.tgUser.id, body.tgUser.username, body.tgUser.first_name, body.tgUser.last_name);
+      dbLogMessage(body.tgUser.id, body.text || body.topic || '', body.type || 'faq');
+    }
     json(res, 200, { ok: true });
     return;
   }
