@@ -650,7 +650,9 @@ const server = http.createServer(async (req, res) => {
     }
     let best = null, bestScore = 0;
     for (const item of faqList) {
-      const score = (item.keys || []).filter(k => queryLower.includes(k.toLowerCase())).length;
+      const matched = (item.keys || []).filter(k => queryLower.includes(k.toLowerCase()));
+      // Weight by character length: longer/more-specific keywords outweigh short generic ones
+      const score = matched.reduce((sum, k) => sum + k.length, 0);
       if (score > bestScore) { bestScore = score; best = item; }
     }
     if (best) {
