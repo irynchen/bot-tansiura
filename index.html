@@ -34,9 +34,11 @@
   .header {
     background: var(--dark2); border: 1px solid var(--border);
     border-bottom: none; border-radius: 20px 20px 0 0;
-    padding: 8px 12px;
-    display: flex; flex-direction: row; justify-content: flex-end; align-items: center;
+    padding: 10px 14px;
+    display: flex; flex-direction: row; justify-content: space-between; align-items: center;
+    gap: 10px;
   }
+  .header-info { display: flex; flex-direction: column; gap: 2px; }
   .logo-wrap {
     width: 40px; height: 40px; border-radius: 10px; overflow: hidden;
     background: #F5F0E8; cursor: pointer;
@@ -292,6 +294,14 @@
 
   <!-- Header -->
   <div class="header">
+    <div class="header-info">
+      <div class="header-name">Александр Танцюра</div>
+      <div class="header-sub">Налоговый консультант · Аликанте 🇪🇸</div>
+      <div class="status-row">
+        <div class="status-dot"></div>
+        <span class="status-text">Онлайн</span>
+      </div>
+    </div>
     <div class="logo-wrap" onclick="showProfile()" ondblclick="document.querySelector('.stats-panel').classList.toggle('open')" title="Обо мне">
       <img src="/at-logo.png" alt="AT">
     </div>
