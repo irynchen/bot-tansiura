@@ -648,12 +648,18 @@ const server = http.createServer(async (req, res) => {
       dbLogMessage(chatId, text, 'greeting', '👋 Привет! Я помощник налогового консультанта Александра Танцюры из Аликанте. Рад помочь разобраться в испанских налогах и финансовых вопросах. Задавайте ваш вопрос — постараюсь объяснить всё просто и понятно!');
       return;
     }
-    let best = null, bestScore = 0;
+    let best = null, bestScore = 0, bestCount = 0;
     for (const item of faqList) {
-      const matched = (item.keys || []).filter(k => queryLower.includes(k.toLowerCase()));
-      // Weight by character length: longer/more-specific keywords outweigh short generic ones
+      const matched = (item.keys || []).filter(k => {
+        const esc = k.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Word-boundary match for Cyrillic+Latin: keyword must not be inside a longer word
+        return new RegExp('(?<![а-яёА-ЯЁa-zA-Z0-9])' + esc + '(?![а-яёА-ЯЁa-zA-Z0-9])', 'i').test(queryLower);
+      });
       const score = matched.reduce((sum, k) => sum + k.length, 0);
-      if (score > bestScore) { bestScore = score; best = item; }
+      // Primary: highest score; tiebreaker: most matched keywords (more specific hit)
+      if (score > bestScore || (score === bestScore && matched.length > bestCount)) {
+        bestScore = score; bestCount = matched.length; best = item;
+      }
     }
     if (best) {
       const plain = best.answer
