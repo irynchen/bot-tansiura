@@ -10,6 +10,11 @@ const TG_TOKEN       = process.env.TELEGRAM_BOT_TOKEN || '';
 const BOT_URL        = 'https://nalog.goeloria.com';
 const PORT = 3000;
 
+// Multi-user support: ADMIN_USERS env var as JSON, e.g. {"admin":"pw","ishev":"festival"}
+// Falls back to single ADMIN_PASSWORD (username "admin") if not set.
+let ADMIN_USERS = null;
+try { if (process.env.ADMIN_USERS) ADMIN_USERS = JSON.parse(process.env.ADMIN_USERS); } catch(e) {}
+
 const FAQ_PATH    = path.join(__dirname, 'faq.json');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const STATS_PATH  = path.join(__dirname, 'stats.json');
@@ -444,9 +449,16 @@ const server = http.createServer(async (req, res) => {
 
   // ── Admin login ────────────────────────────────────────────────────────────
   if (req.method === 'POST' && urlPath === '/api/admin/login') {
-    if (!ADMIN_PASSWORD) { json(res, 503, { error: 'ADMIN_PASSWORD nicht gesetzt' }); return; }
     const body = await readJsonBody(req);
-    if (body.password !== ADMIN_PASSWORD) { json(res, 401, { error: 'Falsches Passwort' }); return; }
+    let ok = false;
+    if (ADMIN_USERS) {
+      const user = (body.username || '').trim();
+      ok = user && ADMIN_USERS[user] === body.password;
+    } else {
+      if (!ADMIN_PASSWORD) { json(res, 503, { error: 'ADMIN_PASSWORD nicht gesetzt' }); return; }
+      ok = body.password === ADMIN_PASSWORD;
+    }
+    if (!ok) { json(res, 401, { error: 'Falscher Benutzername oder Passwort' }); return; }
     const token = generateToken();
     sessions.add(token);
     json(res, 200, { token });
