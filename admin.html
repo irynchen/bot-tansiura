@@ -323,6 +323,9 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <span class="nav-icon">📝</span> FAQ-статьи
         <span class="nav-badge" id="navBadge">0</span>
       </button>
+      <button class="nav-item" id="navSearchTest" onclick="showPage('searchTest')">
+        <span class="nav-icon">🔍</span> Тест поиска
+      </button>
       <button class="nav-item" id="navUsers"  onclick="showPage('users')">
         <span class="nav-icon">👥</span> Пользователи
         <span class="nav-badge" id="navUsersBadge">0</span>
@@ -360,6 +363,22 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
     <div class="page-body">
 
       <!-- ══ FAQ page ══ -->
+      <div class="page" id="pageSearchTest">
+        <div style="max-width:680px;margin:0 auto">
+          <p style="color:var(--muted);font-size:13px;margin-bottom:20px">
+            Введите любой вопрос клиента — и увидите, что бот ответил бы: какую FAQ-статью нашёл, попросил бы уточнить или передал бы ИИ.
+          </p>
+          <div style="display:flex;gap:10px;margin-bottom:24px">
+            <input id="stInput" type="text" class="form-control" placeholder="Например: Какие налоги платит фрилансер?" style="flex:1"
+              onkeydown="if(event.key==='Enter')runSearchTest()">
+            <button class="btn-primary" onclick="runSearchTest()" id="stBtn">Тест</button>
+          </div>
+          <div id="stResult" style="display:none">
+            <div id="stResultInner"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="page active" id="pageFaq">
         <div class="toolbar">
           <div class="search-wrap">
@@ -792,6 +811,75 @@ let ailogOffset = 0;
 let ailogSearch = '';
 const AILOG_PER_PAGE = 10;
 
+// ── Search Tester ─────────────────────────────────────────────────────────────
+
+async function runSearchTest() {
+  const q = document.getElementById('stInput').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('stBtn');
+  btn.disabled = true; btn.textContent = '⏳';
+  document.getElementById('stResult').style.display = 'none';
+
+  const t0 = Date.now();
+  try {
+    const res  = await fetch('/api/ask', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: q }) });
+    const data = await res.json();
+    const ms   = Date.now() - t0;
+    renderSearchTestResult(data, ms);
+  } catch(e) {
+    renderSearchTestResult({ error: e.message }, 0);
+  }
+  btn.disabled = false; btn.textContent = 'Тест';
+}
+
+function renderSearchTestResult(data, ms) {
+  const wrap = document.getElementById('stResultInner');
+  const time = `<span style="color:var(--muted);font-size:12px">⏱ ${ms} мс</span>`;
+
+  if (data.error) {
+    wrap.innerHTML = `<div class="empty-state" style="color:#f87171">Ошибка: ${escHtml(data.error)}</div>`;
+  } else if (data.type === 'faq') {
+    const entry = (allFaqRaw || []).find(e => e.topic === data.topic) || {};
+    const editBtn = entry.id ? `<button class="btn-ghost-sm" onclick="showPage('faq');openModal(${entry.id})" style="margin-left:8px">✏️ Редактировать</button>` : '';
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:20px">✅</span>
+        <span style="font-size:15px;font-weight:600;color:#4ade80">Найдена FAQ-статья</span>
+        ${time}
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px">
+        <div style="font-weight:600;margin-bottom:6px">${escHtml(data.topic || '—')} ${editBtn}</div>
+        <div style="font-size:13px;color:var(--muted);max-height:120px;overflow:hidden;mask-image:linear-gradient(to bottom,#000 70%,transparent)">${data.answer || ''}</div>
+      </div>`;
+  } else if (data.type === 'clarify') {
+    const opts = data.options.map((o, i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+        <span style="color:var(--gold)">${i+1}.</span>
+        <span>${escHtml(o.topic)}</span>
+        <button class="btn-ghost-sm" onclick="showPage('faq');setTimeout(()=>{document.getElementById('searchInput').value=${JSON.stringify(o.topic)};onSearch(${JSON.stringify(o.topic)})},200)" style="margin-left:auto">Найти</button>
+      </div>`).join('');
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:20px">🤔</span>
+        <span style="font-size:15px;font-weight:600;color:#facc15">Бот задал бы уточняющий вопрос</span>
+        ${time}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">${opts}</div>
+      <div style="margin-top:10px;font-size:12px;color:var(--muted)">Клиент увидел бы эти варианты + кнопку "Ничего из этого → Авто-ответ"</div>`;
+  } else {
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:20px">💬</span>
+        <span style="font-size:15px;font-weight:600;color:#60a5fa">FAQ не нашёл совпадений — ответил бы ИИ</span>
+        ${time}
+      </div>
+      <div style="font-size:13px;color:var(--muted)">Либо добавьте FAQ-статью по этой теме, либо оставьте как есть — ИИ ответит автоматически.</div>`;
+  }
+  document.getElementById('stResult').style.display = 'block';
+}
+
+let allFaqRaw = [];
+
 async function loadAiLog(offset) {
   ailogOffset = offset;
   const qs = new URLSearchParams({ limit: AILOG_PER_PAGE, offset, search: ailogSearch });
@@ -975,6 +1063,7 @@ async function loadAndShow() {
     if (adminCfgRes.status === 401) { logout(); return; }
     if (!faqRes.ok) throw new Error();
     faqData     = await faqRes.json();
+    allFaqRaw   = faqData.ru || [];
     const pub   = cfgRes.ok      ? await cfgRes.json()      : {};
     const priv  = adminCfgRes.ok ? await adminCfgRes.json() : {};
     configData  = { ...pub, ...priv };
@@ -995,7 +1084,7 @@ async function loadAndShow() {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-const PAGE_TITLES = { faq:'FAQ-статьи', users:'Пользователи', ailog:'ИИ-Ответы', config:'Настройки', stats:'Статистика', portalUsers:'🔐 Управление пользователями' };
+const PAGE_TITLES = { faq:'FAQ-статьи', searchTest:'🔍 Тест поиска', users:'Пользователи', ailog:'ИИ-Ответы', config:'Настройки', stats:'Статистика', portalUsers:'🔐 Управление пользователями' };
 
 function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
