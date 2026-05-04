@@ -708,12 +708,33 @@ function appendClarification(originalText, options) {
   const chat = document.getElementById('chat');
   const div = document.createElement('div');
   div.className = 'msg bot';
-  const btns = options.map((opt, i) =>
-    `<button class="clarify-btn" onclick="chooseFaqId(${JSON.stringify(opt.id)},${JSON.stringify(originalText)},this)">${i + 1}. ${escHtml(opt.topic)}</button>`
-  ).join('');
-  const noneBtn = `<button class="clarify-btn clarify-none" onclick="chooseClarifyAI(${JSON.stringify(originalText)},this)">❓ Ничего из этого → Авто-ответ</button>`;
-  div.innerHTML = `<div class="bubble">🤔 Уточните, пожалуйста, о чём ваш вопрос:<div class="clarify-options">${btns}${noneBtn}</div></div>
-    <div class="msg-footer"><span class="msg-time">${getTime()}</span></div>`;
+
+  const optDiv = document.createElement('div');
+  optDiv.className = 'clarify-options';
+  options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'clarify-btn';
+    btn.textContent = `${i + 1}. ${opt.topic}`;
+    btn.addEventListener('click', () => chooseFaqId(opt.id, originalText, btn));
+    optDiv.appendChild(btn);
+  });
+  const noneBtn = document.createElement('button');
+  noneBtn.className = 'clarify-btn clarify-none';
+  noneBtn.textContent = '❓ Ничего из этого → Авто-ответ';
+  noneBtn.addEventListener('click', () => chooseClarifyAI(originalText, noneBtn));
+  optDiv.appendChild(noneBtn);
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.appendChild(document.createTextNode('🤔 Уточните, пожалуйста, о чём ваш вопрос:'));
+  bubble.appendChild(optDiv);
+
+  const footer = document.createElement('div');
+  footer.className = 'msg-footer';
+  footer.innerHTML = `<span class="msg-time">${getTime()}</span>`;
+
+  div.appendChild(bubble);
+  div.appendChild(footer);
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -797,7 +818,6 @@ async function sendMessage() {
     } else {
       // type === 'ai'
       await callAI(text);
-      return; // callAI calls hideTyping internally
     }
   } catch (err) {
     hideTyping();

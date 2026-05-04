@@ -561,12 +561,19 @@ const server = http.createServer(async (req, res) => {
 
     if (!matches.length) { json(res, 200, { type: 'ai' }); return; }
 
-    if (matches.length === 1 && matches[0].confidence === 'high') {
+    if (matches[0].confidence === 'high') {
+      // First match is clear → answer directly
       const entry = activeEntries.find(e => String(e.id) === String(matches[0].id));
       if (entry) { json(res, 200, { type: 'faq', answer: entry.answer, topic: entry.topic || '' }); return; }
     }
 
-    // Multiple matches or medium confidence → ask user to clarify
+    if (matches.length === 1) {
+      // Single medium-confidence match → answer directly (best guess)
+      const entry = activeEntries.find(e => String(e.id) === String(matches[0].id));
+      if (entry) { json(res, 200, { type: 'faq', answer: entry.answer, topic: entry.topic || '' }); return; }
+    }
+
+    // Multiple medium-confidence matches → ask user to clarify
     const options = matches
       .map(m => activeEntries.find(e => String(e.id) === String(m.id)))
       .filter(Boolean)
@@ -1030,13 +1037,18 @@ const server = http.createServer(async (req, res) => {
 
     if (activeFaq.length && apiKey) {
       const matches = await searchFaqSemantic(queryText, activeFaq, apiKey);
-      if (matches.length === 1 && matches[0].confidence === 'high') {
+      if (matches.length >= 1 && matches[0].confidence === 'high') {
+        // First match is clear → answer directly, ignore lower-confidence alternatives
         faqEntry = activeFaq.find(e => String(e.id) === String(matches[0].id)) || null;
-      } else if (matches.length > 0) {
+      } else if (matches.length > 1) {
+        // Multiple medium-confidence matches → ask user to clarify
         clarifyOpts = matches
           .map(m => activeFaq.find(e => String(e.id) === String(m.id)))
           .filter(Boolean)
           .map(e => ({ id: e.id, topic: e.topic || '' }));
+      } else if (matches.length === 1) {
+        // Single medium-confidence match → answer directly (best guess)
+        faqEntry = activeFaq.find(e => String(e.id) === String(matches[0].id)) || null;
       }
     }
 
