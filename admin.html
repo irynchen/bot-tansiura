@@ -368,10 +368,14 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
           <p style="color:var(--muted);font-size:13px;margin-bottom:20px">
             Введите любой вопрос клиента — и увидите, что бот ответил бы: какую FAQ-статью нашёл, попросил бы уточнить или передал бы ИИ.
           </p>
-          <div style="display:flex;gap:10px;margin-bottom:24px">
-            <input id="stInput" type="text" class="form-control" placeholder="Например: Какие налоги платит фрилансер?" style="flex:1"
-              onkeydown="if(event.key==='Enter')runSearchTest()">
-            <button class="btn-primary" onclick="runSearchTest()" id="stBtn">Тест</button>
+          <div style="margin-bottom:16px">
+            <textarea id="stInput" class="form-control" rows="3"
+              placeholder="Например: Какие налоги платит фрилансер в Испании?"
+              style="width:100%;resize:vertical;font-size:15px;padding:12px 14px;line-height:1.5"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();runSearchTest()}"></textarea>
+            <div style="display:flex;justify-content:flex-end;margin-top:8px">
+              <button class="btn-primary" onclick="runSearchTest()" id="stBtn" style="min-width:140px">🔍 Тест</button>
+            </div>
           </div>
           <div id="stResult" style="display:none">
             <div id="stResultInner"></div>
