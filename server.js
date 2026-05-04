@@ -12,6 +12,15 @@ const TG_TOKEN       = process.env.TELEGRAM_BOT_TOKEN || '';
 const BOT_URL        = 'https://nalog.goeloria.com';
 const PORT = 3000;
 
+const CLIENT_SYSTEM_PROMPT = `Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ \`). Не предлагай сразу писать лично — сначала помоги с вопросом.
+
+Александр НЕ занимается следующими темами. Если вопрос касается их — вежливо объясни это и порекомендуй другого специалиста, не отвечай по существу:
+- ВНЖ, вид на жительство, миграция, оформление резидентства → специалист по иммиграционному праву (abogado de extranjería)
+- Пенсии, трудовые отношения, увольнения, трудовой договор (laboral) → специалист по трудовому праву (asesor laboral)
+- Юридические вопросы, суды, иски, защита прав → адвокат (abogado)
+
+Если вопрос не связан ни с налогами/финансами/бухгалтерией, ни с перечисленными исключениями — ответь строго одним словом: [SKIP]`;
+
 // Multi-user support: ADMIN_USERS env var as JSON, e.g. {"admin":"pw","ishev":"festival"}
 // Falls back to single ADMIN_PASSWORD (username "admin") if not set.
 let ADMIN_USERS = null;
@@ -879,7 +888,7 @@ const server = http.createServer(async (req, res) => {
             const apiKey = getApiKey('client');
             if (apiKey) {
               await tgCb('sendChatAction', { chat_id: cbChatId, action: 'typing' });
-              const sysP = 'Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ `). Не предлагай сразу писать лично — сначала помоги с вопросом. Если вопрос явно не связан с налогами, финансами или бухгалтерией — ответь строго одним словом: [SKIP]';
+              const sysP = CLIENT_SYSTEM_PROMPT;
               const aiR = await callClaudeInternal({ model: getModel('client'), max_tokens: 600,
                 system: sysP, messages: [{ role: 'user', content: origQuery }] }, apiKey);
               const reply = aiR.content?.[0]?.text || '';
@@ -1092,7 +1101,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     await tg('sendChatAction', { ...bizExtra, chat_id: chatId, action: 'typing' });
-    const sysPrompt = 'Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ `). Не предлагай сразу писать лично — сначала помоги с вопросом. Если вопрос явно не связан с налогами, финансами или бухгалтерией — ответь строго одним словом: [SKIP]';
+    const sysPrompt = CLIENT_SYSTEM_PROMPT;
     const aiRes = await callClaudeInternal({
       model: getModel('client'), max_tokens: 600,
       system: sysPrompt, messages: [{ role: 'user', content: queryText }]
