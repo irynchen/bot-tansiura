@@ -3,6 +3,8 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+let nodemailer = null;
+try { nodemailer = require('nodemailer'); } catch(e) {}
 
 const API_KEY        = process.env.ANTHROPIC_API_KEY || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -221,6 +223,24 @@ function loadPortalUsers() {
 
 function savePortalUsers(users) {
   fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2), 'utf8');
+}
+
+function genTempPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  return Array.from({length: 10}, () => chars[crypto.randomInt(chars.length)]).join('');
+}
+
+async function sendMail(to, subject, text) {
+  if (!nodemailer) throw new Error('nodemailer nicht installiert');
+  const cfg = loadConfig();
+  const smtp = cfg.smtp || {};
+  if (!smtp.host || !smtp.user || !smtp.pass) throw new Error('SMTP nicht konfiguriert');
+  const transporter = nodemailer.createTransport({
+    host: smtp.host, port: smtp.port || 587,
+    secure: (smtp.port || 587) === 465,
+    auth: { user: smtp.user, pass: smtp.pass }
+  });
+  await transporter.sendMail({ from: smtp.from || smtp.user, to, subject, text });
 }
 
 // ── FAQ helpers ───────────────────────────────────────────────────────────────
@@ -566,6 +586,28 @@ const server = http.createServer(async (req, res) => {
     sessions.set(token, { username: user.username, role: user.role || 'admin', expiresAt: Date.now() + SESSION_TTL });
     dbSessionStart(user.username, token, req.socket?.remoteAddress);
     json(res, 200, { token, username: user.username, role: user.role || 'admin' });
+    return;
+  }
+
+  // ── Forgot password ───────────────────────────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/admin/forgot-password') {
+    const body = await readJsonBody(req);
+    const identifier = (body.username || body.email || '').trim().toLowerCase();
+    const users = loadPortalUsers();
+    const user = users.find(u => u.username.toLowerCase() === identifier || (u.email && u.email.toLowerCase() === identifier));
+    if (!user || !user.email) {
+      json(res, 404, { error: 'Benutzer nicht gefunden oder keine E-Mail hinterlegt' }); return;
+    }
+    const tempPw = genTempPassword();
+    user.passwordHash = hashPassword(tempPw);
+    savePortalUsers(users);
+    try {
+      await sendMail(user.email, 'Временный пароль — Админ-портал',
+        `Здравствуйте, ${user.username}!\n\nВаш временный пароль: ${tempPw}\n\nПожалуйста, войдите и смените пароль.\n\nhttps://nalog.goeloria.com/admin.html`);
+      json(res, 200, { ok: true });
+    } catch(e) {
+      json(res, 500, { error: 'Пароль сброшен, но отправить письмо не удалось: ' + e.message });
+    }
     return;
   }
 

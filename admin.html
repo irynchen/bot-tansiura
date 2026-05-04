@@ -281,6 +281,17 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
     </div>
     <button class="btn-primary" onclick="login()">Войти</button>
     <div class="error-msg" id="loginError"></div>
+    <div id="forgotForm" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="field"><label>Имя пользователя или Email</label>
+        <input type="text" id="forgotInput" placeholder="Введите логин или e-mail…">
+      </div>
+      <button class="btn-primary" onclick="sendForgotPassword()">Отправить новый пароль</button>
+      <div class="error-msg" id="forgotError"></div>
+    </div>
+    <button onclick="document.getElementById('forgotForm').style.display=document.getElementById('forgotForm').style.display==='none'?'block':'none'"
+      style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;margin-top:12px;text-decoration:underline">
+      Забыли пароль?
+    </button>
   </div>
 </div>
 
@@ -557,7 +568,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       <div class="page" id="pagePortalUsers">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <h2 style="font-size:16px;font-weight:600">Пользователи портала</h2>
-          <button class="btn-primary" onclick="openPortalUserModal()">+ Добавить</button>
+          <button class="btn-primary" style="width:auto;padding:9px 20px" onclick="openPortalUserModal()">+ Добавить</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -567,12 +578,27 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
             <tbody id="portalUsersBody"></tbody>
           </table>
         </div>
-        <h3 style="margin:24px 0 12px;font-size:15px">История сессий</h3>
+        <h3 style="margin:24px 0 12px;font-size:15px;display:flex;align-items:center;gap:10px">
+          История сессий
+          <button class="btn-ghost-sm" onclick="loadSessionHistory()">↻ Обновить</button>
+        </h3>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Пользователь</th><th>Вход</th><th>Выход</th><th>IP</th></tr></thead>
             <tbody id="sessionHistoryBody"></tbody>
           </table>
+        </div>
+
+        <h3 style="margin:24px 0 12px;font-size:15px">⚙️ SMTP — отправка писем</h3>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="field"><label>SMTP Host</label><input type="text" id="smtpHost" placeholder="smtp.gmail.com"></div>
+          <div class="field"><label>Port</label><input type="number" id="smtpPort" placeholder="587"></div>
+          <div class="field"><label>Benutzer (E-Mail)</label><input type="text" id="smtpUser" placeholder="noreply@example.com" autocomplete="off"></div>
+          <div class="field"><label>Passwort</label><input type="password" id="smtpPass" autocomplete="new-password" placeholder="••••••••"></div>
+          <div class="field" style="grid-column:span 2"><label>Absender (From)</label><input type="text" id="smtpFrom" placeholder="Bot Tantsiura &lt;noreply@example.com&gt;"></div>
+          <div style="grid-column:span 2;display:flex;justify-content:flex-end">
+            <button class="btn-primary" style="width:auto;padding:9px 20px" onclick="saveSmtp()">Сохранить SMTP</button>
+          </div>
         </div>
       </div>
 
@@ -918,7 +944,7 @@ function showPage(page) {
   if (page === 'stats') { fetch('/api/admin/stats',{headers:{'Authorization':`Bearer ${token}`}}).then(r=>r.json()).then(d=>{serverStats=d;renderStats();}); }
   if (page === 'users') { loadUserStats(); loadUsers(0); }
   if (page === 'ailog') { loadAiLog(0); }
-  if (page === 'portalUsers') { loadPortalUsers(); loadSessionHistory(); }
+  if (page === 'portalUsers') { loadPortalUsers(); loadSessionHistory(); loadSmtpForm(); }
 }
 
 function showCfgTab(tab) {
@@ -1860,6 +1886,46 @@ function showToast(msg, type) {
 }
 function stripHtml(h) { return h.replace(/<[^>]+>/g,''); }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Forgot password ───────────────────────────────────────────────────────────
+
+function loadSmtpForm() {
+  const s = configData.smtp || {};
+  document.getElementById('smtpHost').value = s.host || '';
+  document.getElementById('smtpPort').value = s.port || 587;
+  document.getElementById('smtpUser').value = s.user || '';
+  document.getElementById('smtpPass').value = s.pass || '';
+  document.getElementById('smtpFrom').value = s.from || '';
+}
+
+async function sendForgotPassword() {
+  const val = document.getElementById('forgotInput').value.trim();
+  const errEl = document.getElementById('forgotError');
+  errEl.textContent = '';
+  if (!val) { errEl.textContent = 'Введите логин или e-mail'; return; }
+  try {
+    const r = await fetch('/api/admin/forgot-password', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({username: val}) });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Ошибка'; return; }
+    errEl.style.color = '#4CAF50'; errEl.textContent = 'Новый пароль отправлен на e-mail';
+  } catch { errEl.textContent = 'Сервер недоступен'; }
+}
+
+async function saveSmtp() {
+  const smtp = {
+    host: document.getElementById('smtpHost').value.trim(),
+    port: parseInt(document.getElementById('smtpPort').value) || 587,
+    user: document.getElementById('smtpUser').value.trim(),
+    pass: document.getElementById('smtpPass').value,
+    from: document.getElementById('smtpFrom').value.trim()
+  };
+  const body = { ...configData, smtp };
+  try {
+    const r = await fetch('/api/admin/config', { method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body: JSON.stringify(body) });
+    if (r.ok) { configData = await r.json(); configData.smtp = smtp; showToast('SMTP сохранён'); }
+    else showToast('Ошибка сохранения', 'error');
+  } catch { showToast('Ошибка сети', 'error'); }
+}
 
 // ── Portal user management ────────────────────────────────────────────────────
 
