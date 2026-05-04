@@ -822,6 +822,7 @@ async function sendMessage() {
       saveHistory('bot', '🤔 Уточните, пожалуйста, о чём ваш вопрос:');
     } else {
       // type === 'ai'
+      hideTyping();
       await callAI(text);
     }
   } catch (err) {
