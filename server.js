@@ -498,12 +498,13 @@ CRITICAL RULES:
 
 Reply ONLY valid JSON (no markdown): {"matches":[{"id":"...","confidence":"high|medium"}]}`;
   try {
+    const searchModel = getModel('client');
     const result = await callClaudeInternal({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+      model: searchModel, max_tokens: 200,
       system: sys,
       messages: [{ role: 'user', content: `Question: "${queryText}"\n\nFAQ index:\n${index}` }]
     }, apiKey);
-    if (result.usage) recordTokens('client', 'claude-haiku-4-5-20251001', result.usage.input_tokens, result.usage.output_tokens);
+    if (result.usage) recordTokens('client', searchModel, result.usage.input_tokens, result.usage.output_tokens);
     const raw = result.content?.[0]?.text?.trim() || '';
     const parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim());
     return Array.isArray(parsed.matches) ? parsed.matches : [];
