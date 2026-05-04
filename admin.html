@@ -53,8 +53,13 @@ body { font-family: system-ui,-apple-system,sans-serif; background: var(--bg); c
 .nav-icon { font-size:16px; width:20px; text-align:center; flex-shrink:0; }
 .nav-badge { margin-left:auto; background:rgba(201,168,76,.25); color:var(--gold-light); font-size:10px; font-weight:600; padding:1px 6px; border-radius:10px; }
 .sidebar-footer { padding:12px 10px; border-top:1px solid var(--sidebar-border); }
-.btn-logout { display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:8px; cursor:pointer; font-size:13px; color:#71717a; border:none; background:transparent; transition:all .15s; text-align:left; }
+.btn-logout { display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:8px; cursor:pointer; font-size:13px; color:#a1a1aa; border:none; background:transparent; transition:all .15s; text-align:left; }
 .btn-logout:hover { background:rgba(239,68,68,.1); color:#f87171; }
+.btn-chpw { display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:8px; cursor:pointer; font-size:13px; color:#a1a1aa; border:none; background:transparent; transition:all .15s; text-align:left; }
+.btn-chpw:hover { background:rgba(201,168,76,.1); color:var(--gold-light); }
+.sidebar-user-card { padding:8px 12px 6px; }
+.sidebar-user-name { font-size:13px; font-weight:600; color:#f4f4f5; }
+.sidebar-user-role { font-size:11px; color:#71717a; margin-top:1px; }
 
 /* ── Main ── */
 .main-content { margin-left:var(--sidebar-w); flex:1; display:flex; flex-direction:column; }
@@ -330,9 +335,12 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       </button>
     </nav>
     <div class="sidebar-footer">
-      <div style="font-size:11px;color:#71717a;padding:4px 4px 4px;text-align:center" id="sidebarUser"></div>
-      <button class="btn-logout" style="margin-bottom:4px" onclick="openChangePassword()">🔑 Сменить пароль</button>
-      <button class="btn-logout" onclick="logout()"><span style="font-size:15px">↩</span> Выйти</button>
+      <div class="sidebar-user-card">
+        <div class="sidebar-user-name">👤 <span id="sidebarUser">—</span></div>
+        <div class="sidebar-user-role" id="sidebarRole"></div>
+      </div>
+      <button class="btn-chpw" onclick="openChangePassword()">🔑 Сменить пароль</button>
+      <button class="btn-logout" onclick="logout()">↩ Выйти</button>
     </div>
   </aside>
 
@@ -948,6 +956,8 @@ async function loadAndShow() {
     // Show logged-in user in sidebar
     const userLabel = document.getElementById('sidebarUser');
     if (userLabel) userLabel.textContent = currentUser || '';
+    const roleLabel = document.getElementById('sidebarRole');
+    if (roleLabel) roleLabel.textContent = currentRole === 'superadmin' ? 'superadmin' : 'admin';
     renderTable(); populateConfigForm(); renderStats(); buildCategorySelect(); loadUserStats();
   } catch { if (token) logout(); }
 }
