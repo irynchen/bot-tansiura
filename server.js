@@ -63,6 +63,8 @@ try {
   `);
   try { db.prepare('ALTER TABLE messages ADD COLUMN answer TEXT').run(); } catch {}
   try { db.prepare('ALTER TABLE users ADD COLUMN excluded INTEGER DEFAULT 0').run(); } catch {}
+  // Close any sessions that were open before this restart
+  try { db.prepare("UPDATE session_history SET logout_at = '[restart] ' || ? WHERE logout_at IS NULL").run(new Date().toISOString()); } catch {}
   console.log('SQLite инициализирована:', DB_PATH);
 } catch (e) {
   console.warn('better-sqlite3 не установлен — логирование пользователей отключено. Установите: npm install better-sqlite3');
@@ -586,6 +588,26 @@ const server = http.createServer(async (req, res) => {
     sessions.set(token, { username: user.username, role: user.role || 'admin', expiresAt: Date.now() + SESSION_TTL });
     dbSessionStart(user.username, token, req.socket?.remoteAddress);
     json(res, 200, { token, username: user.username, role: user.role || 'admin' });
+    return;
+  }
+
+  // ── Change own password ────────────────────────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/admin/change-password') {
+    const s = getSession(req);
+    if (!s) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    const body = await readJsonBody(req);
+    const users = loadPortalUsers();
+    const user = users.find(u => u.username === s.username);
+    if (!user) { json(res, 404, { error: 'Benutzer nicht gefunden' }); return; }
+    if (!verifyPassword(body.currentPassword || '', user.passwordHash)) {
+      json(res, 401, { error: 'Aktuelles Passwort falsch' }); return;
+    }
+    if (!body.newPassword || body.newPassword.length < 6) {
+      json(res, 400, { error: 'Neues Passwort muss mind. 6 Zeichen haben' }); return;
+    }
+    user.passwordHash = hashPassword(body.newPassword);
+    savePortalUsers(users);
+    json(res, 200, { ok: true });
     return;
   }
 

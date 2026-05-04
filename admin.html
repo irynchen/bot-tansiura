@@ -330,7 +330,8 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       </button>
     </nav>
     <div class="sidebar-footer">
-      <div style="font-size:11px;color:#71717a;padding:4px 4px 8px;text-align:center" id="sidebarUser"></div>
+      <div style="font-size:11px;color:#71717a;padding:4px 4px 4px;text-align:center" id="sidebarUser"></div>
+      <button class="btn-logout" style="margin-bottom:4px" onclick="openChangePassword()">🔑 Сменить пароль</button>
       <button class="btn-logout" onclick="logout()"><span style="font-size:15px">↩</span> Выйти</button>
     </div>
   </aside>
@@ -605,6 +606,26 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
     </div>
   </div>
 </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-backdrop" id="changePwBackdrop" onclick="if(event.target===this)closeChangePassword()" style="display:none">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h2>Сменить пароль</h2>
+      <button class="modal-close" onclick="closeChangePassword()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <div class="field"><label>Текущий пароль</label><input type="password" id="cpCurrent" autocomplete="current-password"></div>
+      <div class="field"><label>Новый пароль</label><input type="password" id="cpNew" autocomplete="new-password"></div>
+      <div class="field"><label>Повторить новый пароль</label><input type="password" id="cpConfirm" autocomplete="new-password"></div>
+      <div class="error-msg" id="cpError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeChangePassword()">Отмена</button>
+      <button class="btn-primary" style="width:auto;padding:9px 20px" onclick="submitChangePassword()">Сохранить</button>
+    </div>
+  </div>
 </div>
 
 <!-- Portal User Modal -->
@@ -1886,6 +1907,37 @@ function showToast(msg, type) {
 }
 function stripHtml(h) { return h.replace(/<[^>]+>/g,''); }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Change password ───────────────────────────────────────────────────────────
+
+function openChangePassword() {
+  document.getElementById('cpCurrent').value = '';
+  document.getElementById('cpNew').value = '';
+  document.getElementById('cpConfirm').value = '';
+  document.getElementById('cpError').textContent = '';
+  document.getElementById('changePwBackdrop').style.display = 'flex';
+}
+function closeChangePassword() { document.getElementById('changePwBackdrop').style.display = 'none'; }
+
+async function submitChangePassword() {
+  const cur = document.getElementById('cpCurrent').value;
+  const nw  = document.getElementById('cpNew').value;
+  const cnf = document.getElementById('cpConfirm').value;
+  const err = document.getElementById('cpError');
+  err.textContent = '';
+  if (!cur) { err.textContent = 'Введите текущий пароль'; return; }
+  if (nw.length < 6) { err.textContent = 'Новый пароль — минимум 6 символов'; return; }
+  if (nw !== cnf) { err.textContent = 'Пароли не совпадают'; return; }
+  try {
+    const r = await fetch('/api/admin/change-password', {
+      method: 'POST', headers: {'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+      body: JSON.stringify({ currentPassword: cur, newPassword: nw })
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Ошибка'; return; }
+    closeChangePassword(); showToast('Пароль изменён');
+  } catch { err.textContent = 'Ошибка сети'; }
+}
 
 // ── Forgot password ───────────────────────────────────────────────────────────
 
