@@ -71,7 +71,13 @@ body { font-family: system-ui,-apple-system,sans-serif; background: var(--bg); c
 .page.active { display:block; }
 
 /* ── FAQ toolbar ── */
-.toolbar { display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+.toolbar { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+.filter-bar { display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+.filter-select { padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:12px; cursor:pointer; outline:none; transition:border-color .15s; }
+.filter-select:focus, .filter-select.active { border-color:var(--gold); }
+.filter-btn { padding:6px 12px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); font-size:12px; cursor:pointer; transition:all .15s; white-space:nowrap; }
+.filter-btn:hover { border-color:var(--gold); color:var(--gold-light); }
+.filter-sep { color:var(--border); }
 .search-wrap { flex:1; min-width:200px; position:relative; }
 .search-wrap svg { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
 .search-input { width:100%; padding:8px 12px 8px 34px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; transition:border-color .15s; background:var(--surface); }
@@ -361,6 +367,23 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
             <input class="search-input" type="text" id="searchInput" placeholder="Поиск по теме, ключевому слову или ответу…" oninput="onSearch(this.value)">
           </div>
           <button class="btn-add" onclick="openModal(null)">＋ Новый вопрос</button>
+        </div>
+        <div class="filter-bar">
+          <select class="filter-select" id="filterGroup" onchange="applyFilters()">
+            <option value="">Все группы</option>
+          </select>
+          <select class="filter-select" id="filterMenu" onchange="applyFilters()">
+            <option value="">Все меню</option>
+          </select>
+          <select class="filter-select" id="filterApproved" onchange="applyFilters()">
+            <option value="">Любой статус</option>
+            <option value="1">✅ Одобрено</option>
+            <option value="0">○ Не проверено</option>
+          </select>
+          <button class="filter-btn" id="btnResetFilters" onclick="resetFilters()" style="display:none">✕ Сбросить фильтры</button>
+          <span class="filter-sep">|</span>
+          <button class="filter-btn" onclick="collapseAllGroups()">▶ Свернуть все</button>
+          <button class="filter-btn" onclick="expandAllGroups()">▼ Развернуть все</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -995,17 +1018,81 @@ function showCfgTab(tab) {
 // ── Search / table ────────────────────────────────────────────────────────────
 
 const collapsedGroups = new Set();
+let filterGroupVal = '';
+let filterMenuVal = '';
+let filterApprovedVal = '';
 
 function onSearch(v) { searchQuery = v.trim().toLowerCase(); renderTable(); }
 
-function getFiltered() {
+function applyFilters() {
+  filterGroupVal    = document.getElementById('filterGroup').value;
+  filterMenuVal     = document.getElementById('filterMenu').value;
+  filterApprovedVal = document.getElementById('filterApproved').value;
+  const active = filterGroupVal || filterMenuVal || filterApprovedVal;
+  document.getElementById('btnResetFilters').style.display = active ? '' : 'none';
+  document.querySelectorAll('.filter-select').forEach(s => s.classList.toggle('active', !!s.value));
+  renderTable();
+}
+
+function resetFilters() {
+  filterGroupVal = filterMenuVal = filterApprovedVal = '';
+  document.getElementById('filterGroup').value    = '';
+  document.getElementById('filterMenu').value     = '';
+  document.getElementById('filterApproved').value = '';
+  document.getElementById('btnResetFilters').style.display = 'none';
+  document.querySelectorAll('.filter-select').forEach(s => s.classList.remove('active'));
+  renderTable();
+}
+
+function populateFilterDropdowns() {
   const entries = faqData.ru || [];
-  if (!searchQuery) return entries;
-  return entries.filter(e =>
-    e.topic.toLowerCase().includes(searchQuery) ||
-    (e.keys||[]).some(k => k.toLowerCase().includes(searchQuery)) ||
-    stripHtml(e.answer).toLowerCase().includes(searchQuery)
-  );
+  // Groups from configData.categories + any group in entries
+  const catOrder = (configData.categories||[]).map(c => (c.icon+' '+c.name).trim());
+  const allGroups = new Set([...catOrder]);
+  entries.forEach(e => { const g = getPrimaryCategory(e); if (g) allGroups.add(g); });
+  const gSel = document.getElementById('filterGroup');
+  const gCur = gSel.value;
+  gSel.innerHTML = '<option value="">Все группы</option>' +
+    [...allGroups].map(g => `<option value="${escHtml(g)}" ${g===gCur?'selected':''}>${escHtml(g)}</option>`).join('');
+
+  // Menu labels: unique menu item labels across all entries
+  const allMenus = new Set();
+  entries.forEach(e => getMenuItems(e).forEach(m => { if (m.label) allMenus.add(m.label); }));
+  const mSel = document.getElementById('filterMenu');
+  const mCur = mSel.value;
+  mSel.innerHTML = '<option value="">Все меню</option>' +
+    [...allMenus].sort().map(m => `<option value="${escHtml(m)}" ${m===mCur?'selected':''}>${escHtml(m)}</option>`).join('');
+}
+
+function collapseAllGroups() {
+  const entries = faqData.ru || [];
+  entries.forEach(e => { const g = getPrimaryCategory(e); if (g) collapsedGroups.add(g); });
+  renderTable();
+}
+
+function expandAllGroups() {
+  collapsedGroups.clear();
+  renderTable();
+}
+
+function getFiltered() {
+  let entries = faqData.ru || [];
+  if (searchQuery) {
+    entries = entries.filter(e =>
+      e.topic.toLowerCase().includes(searchQuery) ||
+      (e.keys||[]).some(k => k.toLowerCase().includes(searchQuery)) ||
+      stripHtml(e.answer).toLowerCase().includes(searchQuery)
+    );
+  }
+  if (filterGroupVal) {
+    entries = entries.filter(e => getPrimaryCategory(e) === filterGroupVal);
+  }
+  if (filterMenuVal) {
+    entries = entries.filter(e => getMenuItems(e).some(m => m.label === filterMenuVal));
+  }
+  if (filterApprovedVal === '1') entries = entries.filter(e => !!e.approved);
+  if (filterApprovedVal === '0') entries = entries.filter(e => !e.approved);
+  return entries;
 }
 
 function highlight(text, q) {
@@ -1044,9 +1131,11 @@ function renderRow(e, hidden) {
 }
 
 function renderTable() {
+  populateFilterDropdowns();
   const entries = getFiltered();
   const total   = (faqData.ru||[]).length;
-  document.getElementById('headerStats').textContent = `${total} записей`;
+  const shown   = entries.length;
+  document.getElementById('headerStats').textContent = shown < total ? `${shown} из ${total}` : `${total} записей`;
   document.getElementById('navBadge').textContent    = total;
 
   const tbody = document.getElementById('faqBody');
@@ -1055,8 +1144,8 @@ function renderTable() {
     return;
   }
 
-  // Flat list when searching
-  if (searchQuery) {
+  // Flat list when searching or filtering
+  if (searchQuery || filterGroupVal || filterMenuVal || filterApprovedVal) {
     tbody.innerHTML = entries.map(e => renderRow(e, false)).join('');
     return;
   }
