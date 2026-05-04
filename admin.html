@@ -314,8 +314,12 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       <button class="nav-item" id="navStats"  onclick="showPage('stats')">
         <span class="nav-icon">📊</span> Статистика
       </button>
+      <button class="nav-item" id="navPortalUsers" onclick="showPage('portalUsers')" style="display:none">
+        <span class="nav-icon">🔐</span> Пользователи
+      </button>
     </nav>
     <div class="sidebar-footer">
+      <div style="font-size:11px;color:#71717a;padding:4px 4px 8px;text-align:center" id="sidebarUser"></div>
       <button class="btn-logout" onclick="logout()"><span style="font-size:15px">↩</span> Выйти</button>
     </div>
   </aside>
@@ -549,9 +553,57 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         </div>
       </div>
 
+      <!-- Portal Users (superadmin) -->
+      <div class="page" id="pagePortalUsers">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 style="font-size:16px;font-weight:600">Пользователи портала</h2>
+          <button class="btn-primary" onclick="openPortalUserModal()">+ Добавить</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Пользователь</th><th>Email</th><th>Роль</th><th style="text-align:right">Действия</th>
+            </tr></thead>
+            <tbody id="portalUsersBody"></tbody>
+          </table>
+        </div>
+        <h3 style="margin:24px 0 12px;font-size:15px">История сессий</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Пользователь</th><th>Вход</th><th>Выход</th><th>IP</th></tr></thead>
+            <tbody id="sessionHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
+</div>
+
+<!-- Portal User Modal -->
+<div class="modal-backdrop" id="portalUserBackdrop" onclick="if(event.target===this)closePortalUserModal()" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <h2 id="portalUserModalTitle">Добавить пользователя</h2>
+      <button class="modal-close" onclick="closePortalUserModal()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <div class="field"><label>Пользователь</label><input type="text" id="puUsername" autocomplete="off"></div>
+      <div class="field"><label>Email</label><input type="email" id="puEmail" autocomplete="off"></div>
+      <div class="field"><label>Роль</label>
+        <select id="puRole" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+          <option value="admin">admin — стандартный</option>
+          <option value="superadmin">superadmin — с управлением пользователями</option>
+        </select>
+      </div>
+      <div class="field"><label id="puPwLabel">Пароль</label><input type="password" id="puPassword" autocomplete="new-password" placeholder="Оставить пустым — без изменений"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closePortalUserModal()">Отмена</button>
+      <button class="btn-primary" onclick="savePortalUser()">Сохранить</button>
+    </div>
+  </div>
 </div>
 
 <!-- User messages modal -->
@@ -627,6 +679,8 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 
 <script>
 let token = localStorage.getItem('adminToken');
+let currentUser = null;
+let currentRole = null;
 let faqData    = { ru: [] };
 let configData = {};
 let serverStats = {};
@@ -770,9 +824,33 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-if (token) loadAndShow();
+if (token) validateAndShow(); else showLoginScreen();
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
+
+function showLoginScreen() {
+  document.getElementById('mainScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+async function validateAndShow() {
+  try {
+    const r = await fetch('/api/admin/session', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!r.ok) { token = null; localStorage.removeItem('adminToken'); showLoginScreen(); return; }
+    const d = await r.json();
+    currentUser = d.username; currentRole = d.role;
+    loadAndShow();
+  } catch { showLoginScreen(); }
+}
+
+// Re-validate when tab becomes visible again
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && token) {
+    fetch('/api/admin/session', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => { if (!r.ok) logout(); })
+      .catch(() => {});
+  }
+});
 
 async function login() {
   const username = (document.getElementById('usernameInput').value || '').trim();
@@ -783,14 +861,18 @@ async function login() {
     const res = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, password:pw}) });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Ошибка при входе'; return; }
-    token = data.token; localStorage.setItem('adminToken', token); loadAndShow();
+    token = data.token; currentUser = data.username; currentRole = data.role;
+    localStorage.setItem('adminToken', token); loadAndShow();
   } catch { errEl.textContent = 'Сервер недоступен'; }
 }
 
-function logout() {
-  localStorage.removeItem('adminToken'); token = null;
+async function logout() {
+  if (token) {
+    try { await fetch('/api/admin/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }); } catch {}
+  }
+  localStorage.removeItem('adminToken'); token = null; currentUser = null; currentRole = null;
   document.getElementById('mainScreen').style.display = 'none';
-  document.getElementById('loginScreen').style.display = 'flex';
+  showLoginScreen();
   document.getElementById('passwordInput').value = '';
 }
 
@@ -804,6 +886,7 @@ async function loadAndShow() {
       fetch('/api/admin/config', { headers:{'Authorization':`Bearer ${token}`} }),
       fetch('/api/admin/stats',  { headers:{'Authorization':`Bearer ${token}`} })
     ]);
+    if (adminCfgRes.status === 401) { logout(); return; }
     if (!faqRes.ok) throw new Error();
     faqData     = await faqRes.json();
     const pub   = cfgRes.ok      ? await cfgRes.json()      : {};
@@ -812,13 +895,19 @@ async function loadAndShow() {
     serverStats = statsRes.ok ? await statsRes.json() : {};
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('mainScreen').style.display  = 'block';
+    // Show/hide superadmin-only nav items
+    const adminNav = document.getElementById('navPortalUsers');
+    if (adminNav) adminNav.style.display = currentRole === 'superadmin' ? '' : 'none';
+    // Show logged-in user in sidebar
+    const userLabel = document.getElementById('sidebarUser');
+    if (userLabel) userLabel.textContent = currentUser || '';
     renderTable(); populateConfigForm(); renderStats(); buildCategorySelect(); loadUserStats();
   } catch { if (token) logout(); }
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-const PAGE_TITLES = { faq:'FAQ-статьи', users:'Пользователи', ailog:'ИИ-Ответы', config:'Настройки', stats:'Статистика' };
+const PAGE_TITLES = { faq:'FAQ-статьи', users:'Пользователи', ailog:'ИИ-Ответы', config:'Настройки', stats:'Статистика', portalUsers:'🔐 Управление пользователями' };
 
 function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -829,6 +918,7 @@ function showPage(page) {
   if (page === 'stats') { fetch('/api/admin/stats',{headers:{'Authorization':`Bearer ${token}`}}).then(r=>r.json()).then(d=>{serverStats=d;renderStats();}); }
   if (page === 'users') { loadUserStats(); loadUsers(0); }
   if (page === 'ailog') { loadAiLog(0); }
+  if (page === 'portalUsers') { loadPortalUsers(); loadSessionHistory(); }
 }
 
 function showCfgTab(tab) {
@@ -1770,6 +1860,89 @@ function showToast(msg, type) {
 }
 function stripHtml(h) { return h.replace(/<[^>]+>/g,''); }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Portal user management ────────────────────────────────────────────────────
+
+let _editingPortalUser = null;
+
+async function loadPortalUsers() {
+  try {
+    const r = await fetch('/api/admin/portal-users', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!r.ok) return;
+    const users = await r.json();
+    const tbody = document.getElementById('portalUsersBody');
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td><strong>${escHtml(u.username)}</strong></td>
+        <td>${escHtml(u.email || '—')}</td>
+        <td><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${u.role==='superadmin'?'rgba(201,168,76,.15)':'rgba(100,100,255,.1)'};color:${u.role==='superadmin'?'var(--gold-light)':'#99aaff'}">${u.role}</span></td>
+        <td style="text-align:right">
+          <button class="btn-ghost-sm" onclick="openPortalUserModal('${escHtml(u.username)}','${escHtml(u.email||'')}','${u.role}')">✎</button>
+          <button class="btn-ghost-sm" style="color:#e05;margin-left:4px" onclick="deletePortalUser('${escHtml(u.username)}')">✕</button>
+        </td>
+      </tr>`).join('');
+  } catch {}
+}
+
+async function loadSessionHistory() {
+  try {
+    const r = await fetch('/api/admin/session-history', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!r.ok) return;
+    const rows = await r.json();
+    const tbody = document.getElementById('sessionHistoryBody');
+    tbody.innerHTML = rows.map(s => {
+      const login  = s.login_at  ? new Date(s.login_at).toLocaleString('ru-RU')  : '—';
+      const logout = s.logout_at ? new Date(s.logout_at).toLocaleString('ru-RU') : '<span style="color:#4CAF50">активна</span>';
+      return `<tr><td>${escHtml(s.username)}</td><td style="font-size:12px">${login}</td><td style="font-size:12px">${logout}</td><td style="font-size:11px;color:var(--muted)">${escHtml(s.ip||'—')}</td></tr>`;
+    }).join('');
+  } catch {}
+}
+
+function openPortalUserModal(username='', email='', role='admin') {
+  _editingPortalUser = username || null;
+  document.getElementById('portalUserModalTitle').textContent = username ? 'Редактировать пользователя' : 'Добавить пользователя';
+  document.getElementById('puUsername').value  = username;
+  document.getElementById('puUsername').disabled = !!username;
+  document.getElementById('puEmail').value     = email;
+  document.getElementById('puRole').value      = role;
+  document.getElementById('puPassword').value  = '';
+  document.getElementById('puPwLabel').textContent = username ? 'Новый пароль (пусто — не менять)' : 'Пароль';
+  document.getElementById('portalUserBackdrop').style.display = 'flex';
+}
+
+function closePortalUserModal() {
+  document.getElementById('portalUserBackdrop').style.display = 'none';
+}
+
+async function savePortalUser() {
+  const username = document.getElementById('puUsername').value.trim();
+  const email    = document.getElementById('puEmail').value.trim();
+  const role     = document.getElementById('puRole').value;
+  const password = document.getElementById('puPassword').value;
+  if (!username) { showToast('Введите имя пользователя', 'error'); return; }
+  if (!_editingPortalUser && !password) { showToast('Введите пароль', 'error'); return; }
+  try {
+    const body = { email, role };
+    if (password) body.password = password;
+    if (!_editingPortalUser) body.username = username;
+    const url  = _editingPortalUser ? `/api/admin/portal-users/${encodeURIComponent(_editingPortalUser)}` : '/api/admin/portal-users';
+    const meth = _editingPortalUser ? 'PUT' : 'POST';
+    const r = await fetch(url, { method: meth, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
+    if (!r.ok) { const d = await r.json(); showToast(d.error || 'Ошибка', 'error'); return; }
+    closePortalUserModal();
+    loadPortalUsers();
+    showToast('Сохранено');
+  } catch { showToast('Ошибка сети', 'error'); }
+}
+
+async function deletePortalUser(username) {
+  if (!confirm(`Удалить пользователя «${username}»?`)) return;
+  try {
+    await fetch(`/api/admin/portal-users/${encodeURIComponent(username)}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+    loadPortalUsers();
+    showToast('Удалено');
+  } catch { showToast('Ошибка', 'error'); }
+}
 </script>
 </body>
 </html>

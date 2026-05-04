@@ -18,6 +18,9 @@ try { if (process.env.ADMIN_USERS) ADMIN_USERS = JSON.parse(process.env.ADMIN_US
 const FAQ_PATH    = path.join(__dirname, 'faq.json');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const STATS_PATH  = path.join(__dirname, 'stats.json');
+const USERS_PATH  = path.join(__dirname, 'portal_users.json');
+
+const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours
 const DB_PATH     = path.join(__dirname, 'bot.db');
 
 // ── SQLite setup ──────────────────────────────────────────────────────────────
@@ -48,6 +51,13 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
     CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+    CREATE TABLE IF NOT EXISTS session_history (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      username   TEXT NOT NULL,
+      login_at   TEXT NOT NULL,
+      logout_at  TEXT,
+      ip         TEXT
+    );
   `);
   try { db.prepare('ALTER TABLE messages ADD COLUMN answer TEXT').run(); } catch {}
   try { db.prepare('ALTER TABLE users ADD COLUMN excluded INTEGER DEFAULT 0').run(); } catch {}
@@ -148,6 +158,70 @@ const TOKEN_PRICES = {
   'claude-sonnet-4-6':         { in:  3.00, out: 15.00 },
   'claude-haiku-4-5-20251001': { in:  0.80, out:  4.00 },
 };
+
+// ── Session history helpers ────────────────────────────────────────────────────
+
+let _sessionDbIds = new Map(); // token → db row id
+
+function dbSessionStart(username, token, ip) {
+  if (!db) return;
+  try {
+    const info = db.prepare('INSERT INTO session_history (username, login_at, ip) VALUES (?, ?, ?)')
+      .run(username, new Date().toISOString(), ip || null);
+    _sessionDbIds.set(token, info.lastInsertRowid);
+  } catch(e) {}
+}
+
+function dbSessionEnd(token) {
+  if (!db) return;
+  const rowId = _sessionDbIds.get(token);
+  if (rowId) {
+    try { db.prepare('UPDATE session_history SET logout_at = ? WHERE id = ?').run(new Date().toISOString(), rowId); } catch(e) {}
+    _sessionDbIds.delete(token);
+  }
+}
+
+function dbGetSessionHistory(limit = 100) {
+  if (!db) return [];
+  try { return db.prepare('SELECT id, username, login_at, logout_at, ip FROM session_history ORDER BY id DESC LIMIT ?').all(limit); }
+  catch(e) { return []; }
+}
+
+// ── Portal user management ─────────────────────────────────────────────────────
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  try {
+    const [salt, hash] = stored.split(':');
+    return crypto.scryptSync(password, salt, 64).toString('hex') === hash;
+  } catch { return false; }
+}
+
+function loadPortalUsers() {
+  try {
+    if (fs.existsSync(USERS_PATH)) return JSON.parse(fs.readFileSync(USERS_PATH, 'utf8'));
+  } catch(e) {}
+  // Bootstrap from env vars
+  const users = [];
+  if (ADMIN_USERS) {
+    for (const [username, password] of Object.entries(ADMIN_USERS)) {
+      users.push({ username, passwordHash: hashPassword(password), email: '', role: username === 'ishev' ? 'superadmin' : 'admin' });
+    }
+  } else if (ADMIN_PASSWORD) {
+    users.push({ username: 'admin', passwordHash: hashPassword(ADMIN_PASSWORD), email: '', role: 'admin' });
+  }
+  if (users.length) fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2), 'utf8');
+  return users;
+}
+
+function savePortalUsers(users) {
+  fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2), 'utf8');
+}
 
 // ── FAQ helpers ───────────────────────────────────────────────────────────────
 
@@ -254,12 +328,27 @@ function getModel(type) {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-const sessions = new Set();
+// token → { username, role, expiresAt }
+const sessions = new Map();
+
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
-function isAuthenticated(req) {
+
+function getToken(req) {
   const auth = req.headers['authorization'] || '';
-  return auth.startsWith('Bearer ') && sessions.has(auth.slice(7));
+  return auth.startsWith('Bearer ') ? auth.slice(7) : null;
 }
+
+function getSession(req) {
+  const token = getToken(req);
+  if (!token) return null;
+  const s = sessions.get(token);
+  if (!s) return null;
+  if (Date.now() > s.expiresAt) { sessions.delete(token); dbSessionEnd(token); return null; }
+  return s;
+}
+
+function isAuthenticated(req) { return !!getSession(req); }
+function isSuperAdmin(req) { const s = getSession(req); return s && s.role === 'superadmin'; }
 
 // ── Request / response helpers ────────────────────────────────────────────────
 
@@ -447,21 +536,85 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Admin session check ────────────────────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/admin/session') {
+    const s = getSession(req);
+    if (!s) { json(res, 401, { error: 'Session abgelaufen' }); return; }
+    json(res, 200, { username: s.username, role: s.role });
+    return;
+  }
+
+  // ── Admin logout ───────────────────────────────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/admin/logout') {
+    const token = getToken(req);
+    if (token) { dbSessionEnd(token); sessions.delete(token); }
+    json(res, 200, { ok: true });
+    return;
+  }
+
   // ── Admin login ────────────────────────────────────────────────────────────
   if (req.method === 'POST' && urlPath === '/api/admin/login') {
     const body = await readJsonBody(req);
-    let ok = false;
-    if (ADMIN_USERS) {
-      const user = (body.username || '').trim();
-      ok = user && ADMIN_USERS[user] === body.password;
-    } else {
-      if (!ADMIN_PASSWORD) { json(res, 503, { error: 'ADMIN_PASSWORD nicht gesetzt' }); return; }
-      ok = body.password === ADMIN_PASSWORD;
+    const username = (body.username || '').trim();
+    const password = body.password || '';
+    const users = loadPortalUsers();
+    const user = users.find(u => u.username === username);
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      json(res, 401, { error: 'Falscher Benutzername oder Passwort' }); return;
     }
-    if (!ok) { json(res, 401, { error: 'Falscher Benutzername oder Passwort' }); return; }
     const token = generateToken();
-    sessions.add(token);
-    json(res, 200, { token });
+    sessions.set(token, { username: user.username, role: user.role || 'admin', expiresAt: Date.now() + SESSION_TTL });
+    dbSessionStart(user.username, token, req.socket?.remoteAddress);
+    json(res, 200, { token, username: user.username, role: user.role || 'admin' });
+    return;
+  }
+
+  // ── Portal users (superadmin only) ────────────────────────────────────────
+  if (urlPath === '/api/admin/portal-users') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    if (!isSuperAdmin(req))    { json(res, 403, { error: 'Keine Berechtigung' }); return; }
+    if (req.method === 'GET') {
+      json(res, 200, loadPortalUsers().map(u => ({ username: u.username, email: u.email || '', role: u.role || 'admin' })));
+      return;
+    }
+    if (req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const users = loadPortalUsers();
+      if (!body.username || !body.password) { json(res, 400, { error: 'username und password erforderlich' }); return; }
+      if (users.find(u => u.username === body.username)) { json(res, 409, { error: 'Benutzer existiert bereits' }); return; }
+      users.push({ username: body.username.trim(), passwordHash: hashPassword(body.password), email: body.email || '', role: body.role || 'admin' });
+      savePortalUsers(users);
+      json(res, 200, { ok: true }); return;
+    }
+  }
+
+  if (urlPath.startsWith('/api/admin/portal-users/')) {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    if (!isSuperAdmin(req))    { json(res, 403, { error: 'Keine Berechtigung' }); return; }
+    const uname = decodeURIComponent(urlPath.slice('/api/admin/portal-users/'.length));
+    if (req.method === 'PUT') {
+      const body = await readJsonBody(req);
+      const users = loadPortalUsers();
+      const idx = users.findIndex(u => u.username === uname);
+      if (idx === -1) { json(res, 404, { error: 'Nicht gefunden' }); return; }
+      if (body.email    !== undefined) users[idx].email = body.email;
+      if (body.role     !== undefined) users[idx].role  = body.role;
+      if (body.password)               users[idx].passwordHash = hashPassword(body.password);
+      savePortalUsers(users);
+      json(res, 200, { ok: true }); return;
+    }
+    if (req.method === 'DELETE') {
+      const users = loadPortalUsers().filter(u => u.username !== uname);
+      savePortalUsers(users);
+      json(res, 200, { ok: true }); return;
+    }
+  }
+
+  // ── Session history (superadmin only) ─────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/admin/session-history') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    if (!isSuperAdmin(req))    { json(res, 403, { error: 'Keine Berechtigung' }); return; }
+    json(res, 200, dbGetSessionHistory(200));
     return;
   }
 
