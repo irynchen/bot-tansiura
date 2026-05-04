@@ -482,14 +482,21 @@ async function callClaudeInternal(bodyObj, apiKey) {
 async function searchFaqSemantic(queryText, faqEntries, apiKey) {
   if (!faqEntries.length) return [];
   const index = faqEntries.map(e =>
-    `${e.id}|${e.topic || ''}${e.keys?.length ? '|' + e.keys.slice(0, 8).join(',') : ''}`
+    `${e.id}|${e.topic || ''}${e.keys?.length ? '|' + e.keys.join(',') : ''}`
   ).join('\n');
-  const sys = `FAQ search engine for a tax consultant bot in Spain (Russian-speaking clients).
-Match the user question to the most relevant FAQ entries by MEANING, not just keywords.
-Reply ONLY valid JSON (no markdown): {"matches":[{"id":"...","confidence":"high|medium"}]}
-- "high": this entry clearly and directly answers the question
-- "medium": possibly relevant but not certain
-- Return max 3 matches, best first. Empty array if nothing is relevant.`;
+  const sys = `You are a FAQ search engine for a tax consultant bot in Spain (Russian-speaking clients).
+
+Your task: find which FAQ entry BEST answers the user's question.
+
+CRITICAL RULES:
+1. Match by TOPIC first: a question about taxes (налог, платить, IRPF) must match a TAXES entry, NOT a visa/registration entry — even if both mention the same subject (e.g. nomads).
+2. Match by SUBJECT second: who/what the question is about (autónomo, nomad, empresa, etc.)
+3. "кочевник" = "номад" = "nómada" = "digital nomad" — treat as synonyms.
+4. confidence "high" = entry clearly and directly answers the full question.
+5. confidence "medium" = partially relevant, not a perfect match.
+6. Return max 3 matches, best first. Empty array if nothing is relevant.
+
+Reply ONLY valid JSON (no markdown): {"matches":[{"id":"...","confidence":"high|medium"}]}`;
   try {
     const result = await callClaudeInternal({
       model: 'claude-haiku-4-5-20251001', max_tokens: 200,
