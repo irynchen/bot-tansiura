@@ -434,13 +434,16 @@ function proxyToClaude(res, bodyStr, apiKey, keyType, model) {
 
 // ── Normalize FAQ entry (supports old + new menuItems format) ─────────────────
 
-function normalizeEntry(body, id) {
+function normalizeEntry(body, id, username) {
   return {
     id,
     topic:     body.topic     || '',
     keys:      body.keys      || [],
     answer:    body.answer    || '',
     menuItems: body.menuItems || [],
+    approved:  !!body.approved,
+    updatedAt: new Date().toISOString(),
+    updatedBy: username || 'unknown',
   };
 }
 
@@ -696,7 +699,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       const faq  = loadFaq();
       const maxId = Math.max(0, ...(faq.ru || []).map(e => e.id));
-      const entry = normalizeEntry(body, maxId + 1);
+      const entry = normalizeEntry(body, maxId + 1, getSession(req)?.username);
       faq.ru = [...(faq.ru || []), entry];
       saveFaq(faq);
       json(res, 201, entry);
@@ -708,7 +711,7 @@ const server = http.createServer(async (req, res) => {
       const faq  = loadFaq();
       const idx  = (faq.ru || []).findIndex(e => e.id === id);
       if (idx === -1) { json(res, 404, { error: 'Nicht gefunden' }); return; }
-      faq.ru[idx] = normalizeEntry(body, id);
+      faq.ru[idx] = normalizeEntry(body, id, getSession(req)?.username);
       saveFaq(faq);
       json(res, 200, faq.ru[idx]);
       return;

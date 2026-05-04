@@ -110,7 +110,8 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 /* ── Modal ── */
 .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:flex-start; justify-content:center; padding:32px 20px; overflow-y:auto; }
 .modal-backdrop.open { display:flex; }
-.modal { background:var(--surface); border-radius:16px; width:100%; max-width:740px; box-shadow:0 8px 40px rgba(0,0,0,.15); animation:slideIn .2s ease; }
+.modal { background:var(--surface); border-radius:16px; width:95vw; max-width:740px; box-shadow:0 8px 40px rgba(0,0,0,.15); animation:slideIn .2s ease; }
+.modal.modal-wide { max-width:960px; }
 @keyframes slideIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
 .modal-header  { padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
 .modal-header h2 { font-size:16px; font-weight:600; }
@@ -121,8 +122,8 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 .modal-footer-left { display:flex; gap:8px; }
 .btn-action { padding:9px 16px; background:var(--bg); border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; color:var(--text); transition:all .15s; white-space:nowrap; }
 .btn-action:hover { background:var(--border); }
-.form-field { margin-bottom:18px; }
-.form-field label { display:block; font-size:13px; font-weight:500; margin-bottom:6px; }
+.form-field { margin-bottom:12px; }
+.form-field label { display:block; font-size:13px; font-weight:500; margin-bottom:4px; }
 .form-field .hint { font-size:12px; color:var(--muted); margin-bottom:6px; }
 .form-field input  { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; transition:border-color .15s; }
 .form-field input:focus { border-color:var(--gold); }
@@ -160,7 +161,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 .fmt-btn.ai-btn { background:var(--purple-bg); color:var(--purple); border-color:var(--purple-border); margin-left:auto; }
 .fmt-btn.ai-btn:hover { background:#ede9fe; }
 .fmt-btn.ai-btn:disabled { opacity:.5; cursor:not-allowed; }
-.editor { min-height:160px; max-height:300px; overflow-y:auto; padding:12px 14px; border:1px solid var(--border); border-radius:0 0 8px 8px; font-size:14px; line-height:1.7; outline:none; transition:border-color .15s; }
+.editor { min-height:220px; max-height:420px; overflow-y:auto; padding:12px 14px; border:1px solid var(--border); border-radius:0 0 8px 8px; font-size:14px; line-height:1.7; outline:none; transition:border-color .15s; }
 .editor:focus { border-color:var(--gold); }
 .editor .term { color:var(--gold); font-weight:500; }
 .editor-hint { font-size:11px; color:var(--muted); margin-top:5px; }
@@ -676,9 +677,12 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 
 <!-- FAQ Modal -->
 <div class="modal-backdrop" id="modalBackdrop" onclick="backdropClick(event)">
-  <div class="modal">
+  <div class="modal modal-wide">
     <div class="modal-header">
-      <h2 id="modalTitle">Новый вопрос</h2>
+      <div>
+        <h2 id="modalTitle">Новый вопрос</h2>
+        <div id="modalMeta" style="font-size:11px;color:var(--muted);margin-top:2px"></div>
+      </div>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
@@ -716,6 +720,10 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <div class="editor" id="mAnswer" contenteditable="true" onkeydown="editorKeydown(event)" onpaste="editorPaste(event)"></div>
         <div class="editor-hint">Если редактор пустой — ИИ сгенерирует ответ по теме и ключевым словам. Если есть текст — улучшит и отформатирует его.</div>
       </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;font-size:13px;font-weight:500">
+        <input type="checkbox" id="mApproved" style="width:16px;height:16px;accent-color:var(--gold)">
+        ✅ Проверено и одобрено (показывать значок в списке)
+      </label>
     </div>
     <div class="modal-footer">
       <div class="modal-footer-left">
@@ -1020,8 +1028,12 @@ function renderRow(e, hidden) {
   const menuItems = getMenuItems(e);
   const uniqueCats = [...new Set(menuItems.map(m => m.category).filter(Boolean))];
   const menuHtml  = uniqueCats.map(c => `<span class="menu-chip">${escHtml(c)}</span>`).join('<span class="cat-sep"> · </span>');
+  const approvedBadge = e.approved ? '<span title="Проверено и одобрено" style="color:#4CAF50;font-size:14px">✅</span> ' : '<span title="Не проверено" style="color:var(--muted);font-size:14px">○</span> ';
+  const metaHtml = e.updatedAt
+    ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${new Date(e.updatedAt).toLocaleDateString('ru-RU')}${e.updatedBy?' · '+escHtml(e.updatedBy):''}</div>`
+    : '';
   return `<tr${hidden?' class="group-hidden"':''}>
-    <td style="font-weight:500;min-width:130px">${highlight(e.topic,searchQuery)}</td>
+    <td style="font-weight:500;min-width:130px">${approvedBadge}${highlight(e.topic,searchQuery)}${metaHtml}</td>
     <td><div class="keys-wrap">${keysHtml}</div></td>
     <td>${menuHtml || '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
     <td style="color:var(--muted)">${highlight(preview,searchQuery)}</td>
@@ -1148,11 +1160,19 @@ function openModal(id) {
     setTagsArray(entry.keys||[]);
     document.getElementById('mAnswer').innerHTML = entry.answer + '<br>';
     renderMenuItemsEditor(getMenuItems(entry));
+    document.getElementById('mApproved').checked = !!entry.approved;
+    const meta = document.getElementById('modalMeta');
+    if (entry.updatedAt) {
+      const d = new Date(entry.updatedAt).toLocaleString('ru-RU');
+      meta.textContent = `Изменено: ${d}${entry.updatedBy ? ' · ' + entry.updatedBy : ''}`;
+    } else { meta.textContent = ''; }
   } else {
     document.getElementById('mTopic').value = '';
     setTagsArray([]);
     document.getElementById('mAnswer').innerHTML = '<br>';
     renderMenuItemsEditor([]);
+    document.getElementById('mApproved').checked = false;
+    document.getElementById('modalMeta').textContent = '';
   }
   document.getElementById('modalBackdrop').classList.add('open');
   document.getElementById('mTopic').focus();
@@ -1175,7 +1195,7 @@ async function saveEntry() {
     const res = await fetch(url, {
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
-      body: JSON.stringify({ topic, keys, answer, menuItems })
+      body: JSON.stringify({ topic, keys, answer, menuItems, approved: document.getElementById('mApproved').checked })
     });
     if (res.status === 401) { logout(); showToast('Сессия истекла — войдите снова','error'); return; }
     if (!res.ok) { showToast('Ошибка при сохранении','error'); return; }
