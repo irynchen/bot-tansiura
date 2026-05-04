@@ -353,6 +353,13 @@ function getModel(type) {
 // token → { username, role, expiresAt }
 const sessions = new Map();
 
+// userId → { options:[{id,topic}], query, expiresAt } — pending FAQ clarification
+const pendingClarifications = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of pendingClarifications) if (v.expiresAt < now) pendingClarifications.delete(k);
+}, 60 * 1000);
+
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
 
 function getToken(req) {
@@ -447,6 +454,58 @@ function normalizeEntry(body, id, username) {
   };
 }
 
+// ── FAQ / AI helpers ──────────────────────────────────────────────────────────
+
+function answerToPlain(html) {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
+    .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
+async function callClaudeInternal(bodyObj, apiKey) {
+  const body = JSON.stringify(bodyObj);
+  return new Promise((resolve, reject) => {
+    const r = https.request({
+      hostname: 'api.anthropic.com', path: '/v1/messages', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey,
+                 'anthropic-version': '2023-06-01', 'Content-Length': Buffer.byteLength(body) }
+    }, rs => { let d = ''; rs.on('data', c => d += c); rs.on('end', () => resolve(JSON.parse(d))); });
+    r.on('error', reject); r.write(body); r.end();
+  });
+}
+
+// Semantic FAQ search via Claude Haiku — cheap + fast
+// Returns [{id, confidence:'high'|'medium'}] sorted by relevance
+async function searchFaqSemantic(queryText, faqEntries, apiKey) {
+  if (!faqEntries.length) return [];
+  const index = faqEntries.map(e =>
+    `${e.id}|${e.topic || ''}${e.keys?.length ? '|' + e.keys.slice(0, 8).join(',') : ''}`
+  ).join('\n');
+  const sys = `FAQ search engine for a tax consultant bot in Spain (Russian-speaking clients).
+Match the user question to the most relevant FAQ entries by MEANING, not just keywords.
+Reply ONLY valid JSON (no markdown): {"matches":[{"id":"...","confidence":"high|medium"}]}
+- "high": this entry clearly and directly answers the question
+- "medium": possibly relevant but not certain
+- Return max 3 matches, best first. Empty array if nothing is relevant.`;
+  try {
+    const result = await callClaudeInternal({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+      system: sys,
+      messages: [{ role: 'user', content: `Question: "${queryText}"\n\nFAQ index:\n${index}` }]
+    }, apiKey);
+    if (result.usage) recordTokens('client', 'claude-haiku-4-5-20251001', result.usage.input_tokens, result.usage.output_tokens);
+    const raw = result.content?.[0]?.text?.trim() || '';
+    const parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim());
+    return Array.isArray(parsed.matches) ? parsed.matches : [];
+  } catch (e) {
+    console.error('[searchFaqSemantic] error:', e.message);
+    return [];
+  }
+}
+
 // ── Server ────────────────────────────────────────────────────────────────────
 
 process.on('unhandledRejection', (reason) => console.error('[CRASH] unhandledRejection:', reason));
@@ -475,6 +534,45 @@ const server = http.createServer(async (req, res) => {
     const model = bodyObj.model || getModel('admin');
     bodyObj.model = model;
     proxyToClaude(res, JSON.stringify(bodyObj), getApiKey('admin'), 'admin', model);
+    return;
+  }
+
+  // ── Ask: semantic FAQ search for Mini App ────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/ask') {
+    const body = await readJsonBody(req);
+    const { text, faqId } = body;
+    const faqList = loadFaq().ru || [];
+
+    // Direct lookup by ID — used after clarification choice
+    if (faqId !== undefined) {
+      const entry = faqList.find(e => String(e.id) === String(faqId));
+      if (entry) json(res, 200, { type: 'faq', answer: entry.answer, topic: entry.topic || '' });
+      else        json(res, 404, { error: 'not found' });
+      return;
+    }
+
+    if (!text) { json(res, 400, { error: 'text required' }); return; }
+
+    const apiKey     = getApiKey('client');
+    const activeEntries = faqList.filter(e => e.keys?.length && e.answer);
+    if (!apiKey || !activeEntries.length) { json(res, 200, { type: 'ai' }); return; }
+
+    const matches = await searchFaqSemantic(text, activeEntries, apiKey);
+
+    if (!matches.length) { json(res, 200, { type: 'ai' }); return; }
+
+    if (matches.length === 1 && matches[0].confidence === 'high') {
+      const entry = activeEntries.find(e => String(e.id) === String(matches[0].id));
+      if (entry) { json(res, 200, { type: 'faq', answer: entry.answer, topic: entry.topic || '' }); return; }
+    }
+
+    // Multiple matches or medium confidence → ask user to clarify
+    const options = matches
+      .map(m => activeEntries.find(e => String(e.id) === String(m.id)))
+      .filter(Boolean)
+      .map(e => ({ id: e.id, topic: e.topic || '' }));
+    if (options.length) json(res, 200, { type: 'clarify', options });
+    else                json(res, 200, { type: 'ai' });
     return;
   }
 
@@ -738,6 +836,62 @@ const server = http.createServer(async (req, res) => {
     const _msg0 = body.message || body.business_message;
     console.log('[TG] update:', Object.keys(body).join(','), '| from:', _msg0?.from?.id, '| connId:', _msg0?.business_connection_id || 'none', '| text:', JSON.stringify((_msg0?.text||'').slice(0,40)));
 
+    // ── Inline keyboard callback (FAQ clarification choice) ────────────────
+    if (body.callback_query && TG_TOKEN) {
+      const cq       = body.callback_query;
+      const cbData   = cq.data || '';
+      const cbUid    = cq.from?.id;
+      const cbChatId = cq.message?.chat?.id;
+      const tgCb = (method, payload) => new Promise((resolve, reject) => {
+        const d = JSON.stringify(payload);
+        const r = https.request({ hostname:'api.telegram.org', path:`/bot${TG_TOKEN}/${method}`, method:'POST',
+          headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(d)} }, rs => {
+          let b2=''; rs.on('data',c=>b2+=c); rs.on('end',()=>resolve(JSON.parse(b2)));
+        });
+        r.on('error', reject); r.write(d); r.end();
+      });
+      await tgCb('answerCallbackQuery', { callback_query_id: cq.id });
+
+      if (cbData.startsWith('clarify:') && cbChatId) {
+        const choice  = cbData.replace('clarify:', '');
+        const pending = pendingClarifications.get(cbUid);
+        pendingClarifications.delete(cbUid);
+        const markup  = { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
+
+        if (choice === '__ai__') {
+          const origQuery = pending?.query || '';
+          if (origQuery) {
+            const apiKey = getApiKey('client');
+            if (apiKey) {
+              await tgCb('sendChatAction', { chat_id: cbChatId, action: 'typing' });
+              const sysP = 'Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ `). Не предлагай сразу писать лично — сначала помоги с вопросом. Если вопрос явно не связан с налогами, финансами или бухгалтерией — ответь строго одним словом: [SKIP]';
+              const aiR = await callClaudeInternal({ model: getModel('client'), max_tokens: 600,
+                system: sysP, messages: [{ role: 'user', content: origQuery }] }, apiKey);
+              const reply = aiR.content?.[0]?.text || '';
+              if (aiR.usage) recordTokens('client', getModel('client'), aiR.usage.input_tokens, aiR.usage.output_tokens);
+              if (reply && !/^\[?SKIP\]?$/i.test(reply.trim())) {
+                await tgCb('sendMessage', { chat_id: cbChatId, text: reply + '\n\n💬 Авто-ответ', reply_markup: markup });
+                const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
+                dbLogMessage(cbChatId, origQuery, 'ai', reply);
+              }
+            }
+          }
+        } else {
+          const entry = (loadFaq().ru || []).find(e => String(e.id) === String(choice));
+          if (entry) {
+            const plain = answerToPlain(entry.answer);
+            await tgCb('sendMessage', { chat_id: cbChatId, text: plain + '\n\n✅ Проверено Александром',
+              parse_mode: 'Markdown', reply_markup: markup });
+            const sf = loadStats(); sf.total++; sf.faq++;
+            if (entry.topic) sf.topics[entry.topic] = (sf.topics[entry.topic] || 0) + 1;
+            saveStats(sf);
+            dbLogMessage(cbChatId, pending?.query || String(choice), 'faq', plain);
+          }
+        }
+      }
+      return;
+    }
+
     // Store business connection owner IDs (connection_id → owner user_id)
     if (body.business_connection?.id && body.business_connection?.user?.id) {
       bizOwners.set(body.business_connection.id, body.business_connection.user.id);
@@ -868,52 +1022,61 @@ const server = http.createServer(async (req, res) => {
       dbLogMessage(chatId, text, 'greeting', '👋 Привет! Я помощник налогового консультанта Александра Танцюры из Аликанте. Рад помочь разобраться в испанских налогах и финансовых вопросах. Задавайте ваш вопрос — постараюсь объяснить всё просто и понятно!');
       return;
     }
-    let best = null, bestScore = 0, bestCount = 0;
-    for (const item of faqList) {
-      const matched = (item.keys || []).filter(k => {
-        const esc = k.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Word-boundary match for Cyrillic+Latin: keyword must not be inside a longer word
-        return new RegExp('(?<![а-яёА-ЯЁa-zA-Z0-9])' + esc + '(?![а-яёА-ЯЁa-zA-Z0-9])', 'i').test(queryLower);
-      });
-      const score = matched.reduce((sum, k) => sum + k.length, 0);
-      // Primary: highest score; tiebreaker: most matched keywords (more specific hit)
-      if (score > bestScore || (score === bestScore && matched.length > bestCount)) {
-        bestScore = score; bestCount = matched.length; best = item;
+    // ── Semantic FAQ search via Claude Haiku ─────────────────────────────────
+    const apiKey     = getApiKey('client');
+    const activeFaq  = faqList.filter(e => e.keys?.length && e.answer);
+    let faqEntry     = null;
+    let clarifyOpts  = [];
+
+    if (activeFaq.length && apiKey) {
+      const matches = await searchFaqSemantic(queryText, activeFaq, apiKey);
+      if (matches.length === 1 && matches[0].confidence === 'high') {
+        faqEntry = activeFaq.find(e => String(e.id) === String(matches[0].id)) || null;
+      } else if (matches.length > 0) {
+        clarifyOpts = matches
+          .map(m => activeFaq.find(e => String(e.id) === String(m.id)))
+          .filter(Boolean)
+          .map(e => ({ id: e.id, topic: e.topic || '' }));
       }
     }
-    if (best) {
-      const plain = best.answer
-        .replace(/<br\s*\/?>/gi, '\n').replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
-        .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1').replace(/<[^>]+>/g, '').trim();
+
+    if (faqEntry) {
+      const plain     = answerToPlain(faqEntry.answer);
       const faqMarkup = bizConnId ? undefined
         : { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
-      const faqText = (bizGreetPrefix ? '👋 Привет!\n\n' : '') + plain + '\n\n✅ Проверено Александром';
+      const faqText   = (bizGreetPrefix ? '👋 Привет!\n\n' : '') + plain + '\n\n✅ Проверено Александром';
       await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: faqText, parse_mode: 'Markdown',
-        ...(faqMarkup ? { reply_markup: faqMarkup } : {})
-      });
+        ...(faqMarkup ? { reply_markup: faqMarkup } : {}) });
       const sf = loadStats(); sf.total++; sf.faq++;
-      if (best.title) sf.topics[best.title] = (sf.topics[best.title] || 0) + 1;
+      if (faqEntry.topic) sf.topics[faqEntry.topic] = (sf.topics[faqEntry.topic] || 0) + 1;
       saveStats(sf);
       dbLogMessage(chatId, text, 'faq', plain);
       return;
     }
 
-    // AI fallback
-    const apiKey = getApiKey('client');
+    if (clarifyOpts.length) {
+      const userId = msg.from?.id || chatId;
+      pendingClarifications.set(userId, { options: clarifyOpts, query: queryText, expiresAt: Date.now() + 5 * 60 * 1000 });
+      const keyboard = clarifyOpts.map(opt => [{ text: opt.topic, callback_data: `clarify:${opt.id}` }]);
+      keyboard.push([{ text: '❓ Ничего из этого → Авто-ответ', callback_data: 'clarify:__ai__' }]);
+      await tg('sendMessage', { ...bizExtra, chat_id: chatId,
+        text: '🤔 Уточните, пожалуйста, о чём ваш вопрос:',
+        reply_markup: { inline_keyboard: keyboard } });
+      dbLogMessage(chatId, text, 'clarify', '🤔 Уточните, пожалуйста, о чём ваш вопрос:');
+      return;
+    }
+
+    // ── AI fallback ──────────────────────────────────────────────────────────
     if (!apiKey) {
       if (!bizConnId) await tg('sendMessage', { chat_id: chatId, text: 'Бот временно недоступен. Обратитесь напрямую: @AlexanderTantsiura' });
       return;
     }
     await tg('sendChatAction', { ...bizExtra, chat_id: chatId, action: 'typing' });
     const sysPrompt = 'Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания). Отвечай по-русски, тепло и понятно, максимум 4 предложения. Испанские термины объясняй в скобках. Не придумывай цифры — говори, что цифры лучше уточнить индивидуально. НЕ используй Markdown-символы (* # _ `). Не предлагай сразу писать лично — сначала помоги с вопросом. Если вопрос явно не связан с налогами, финансами или бухгалтерией — ответь строго одним словом: [SKIP]';
-    const aiBody = JSON.stringify({ model: getModel('client'), max_tokens: 600, system: sysPrompt, messages: [{ role:'user', content: queryText }] });
-    const aiRes  = await new Promise((resolve, reject) => {
-      const r = https.request({ hostname:'api.anthropic.com', path:'/v1/messages', method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','Content-Length':Buffer.byteLength(aiBody)} }, rs => {
-        let d=''; rs.on('data',c=>d+=c); rs.on('end',()=>resolve(JSON.parse(d)));
-      });
-      r.on('error', reject); r.write(aiBody); r.end();
-    });
+    const aiRes = await callClaudeInternal({
+      model: getModel('client'), max_tokens: 600,
+      system: sysPrompt, messages: [{ role: 'user', content: queryText }]
+    }, apiKey);
     const reply = aiRes.content?.[0]?.text || '';
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
     console.log('[TG] AI reply:', JSON.stringify(reply.slice(0, 80)), '| biz:', !!bizConnId);
