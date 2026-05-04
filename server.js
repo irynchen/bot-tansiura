@@ -893,7 +893,11 @@ const server = http.createServer(async (req, res) => {
                 system: sysP, messages: [{ role: 'user', content: origQuery }] }, apiKey);
               const reply = aiR.content?.[0]?.text || '';
               if (aiR.usage) recordTokens('client', getModel('client'), aiR.usage.input_tokens, aiR.usage.output_tokens);
-              if (reply && !/^\[?SKIP\]?$/i.test(reply.trim())) {
+              if (!reply || /^\[?SKIP\]?$/i.test(reply.trim())) {
+                const skipMsg = 'Этот вопрос выходит за рамки моей специализации 🙂 Александр занимается налогами и бухгалтерией в Испании. Если есть налоговый вопрос — спрашивайте!';
+                await tgCb('sendMessage', { chat_id: cbChatId, text: skipMsg });
+                dbLogMessage(cbChatId, origQuery, 'skip', skipMsg);
+              } else {
                 await tgCb('sendMessage', { chat_id: cbChatId, text: reply + '\n\n💬 Авто-ответ', reply_markup: markup });
                 const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
                 dbLogMessage(cbChatId, origQuery, 'ai', reply);
@@ -1109,7 +1113,13 @@ const server = http.createServer(async (req, res) => {
     const reply = aiRes.content?.[0]?.text || '';
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
     console.log('[TG] AI reply:', JSON.stringify(reply.slice(0, 80)), '| biz:', !!bizConnId);
-    if (!reply || /^\[?SKIP\]?$/i.test(reply.trim())) { console.log('[TG] SKIP — kein Senden'); return; }
+    if (!reply || /^\[?SKIP\]?$/i.test(reply.trim())) {
+      console.log('[TG] SKIP — freundliche Meldung');
+      const skipMsg = 'Этот вопрос выходит за рамки моей специализации 🙂 Александр занимается налогами и бухгалтерией в Испании. Если есть налоговый вопрос — спрашивайте!';
+      if (!bizConnId) await tg('sendMessage', { chat_id: chatId, text: skipMsg });
+      dbLogMessage(chatId, text, 'skip', skipMsg);
+      return;
+    }
     const aiMarkup = bizConnId ? undefined
       : { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
     const aiText = (bizGreetPrefix ? '👋 Привет!\n\n' : '') + reply + '\n\n💬 Авто-ответ';

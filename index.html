@@ -786,9 +786,16 @@ async function callAI(text) {
       body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, system, messages:[{role:'user',content:text}] })
     })).json();
     hideTyping();
-    const reply = mdToHtml(data.content?.[0]?.text || TEXTS[currentLang].error);
+    const rawReply = data.content?.[0]?.text || '';
+    if (!rawReply || /^\[?SKIP\]?$/i.test(rawReply.trim())) {
+      const skipMsg = 'Этот вопрос выходит за рамки моей специализации 🙂 Александр занимается налогами и бухгалтерией в Испании. Если есть налоговый вопрос — спрашивайте!';
+      appendMessage(skipMsg, 'bot');
+      saveHistory('bot', skipMsg);
+      return;
+    }
+    const reply = mdToHtml(rawReply);
     appendMessage(reply, 'bot', { cls: 'badge-ai', label: '🤖 Авто-ответ' });
-    trackQuestion('Другое', 'ai', text, data.content?.[0]?.text || '');
+    trackQuestion('Другое', 'ai', text, rawReply);
     saveHistory('bot', reply);
   } catch { hideTyping(); appendMessage(TEXTS[currentLang].error, 'bot'); }
 }
