@@ -79,6 +79,7 @@ try {
     );
   `);
   try { db.prepare('ALTER TABLE messages ADD COLUMN answer TEXT').run(); } catch {}
+  try { db.prepare('ALTER TABLE feedback ADD COLUMN rating TEXT').run(); } catch {}
   try { db.prepare('ALTER TABLE users ADD COLUMN excluded INTEGER DEFAULT 0').run(); } catch {}
   // Close any sessions that were open before this restart
   try { db.prepare("UPDATE session_history SET logout_at = '[restart] ' || ? WHERE logout_at IS NULL").run(new Date().toISOString()); } catch {}
@@ -624,12 +625,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── Feedback (client posts 👎 events) ────────────────────────────────────
+  // ── Feedback ─────────────────────────────────────────────────────────────
   if (req.method === 'POST' && urlPath === '/api/feedback') {
     const body = await readJsonBody(req);
     if (db) {
-      db.prepare(`INSERT INTO feedback (chat_id, user_msg, bot_msg, answered_by, created_at) VALUES (?, ?, ?, ?, ?)`)
-        .run(body.tgUser?.id || null, body.userMsg || '', body.botMsg || '', body.answeredBy || 'ai', new Date().toISOString());
+      db.prepare(`INSERT INTO feedback (chat_id, user_msg, bot_msg, answered_by, rating, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(body.tgUser?.id || null, body.userMsg || '', body.botMsg || '', body.answeredBy || 'ai', body.rating === 'up' ? 'up' : 'down', new Date().toISOString());
     }
     json(res, 200, { ok: true });
     return;
@@ -1218,7 +1219,7 @@ const server = http.createServer(async (req, res) => {
     const offset = parseInt(qs.get('offset') || '0');
     const total  = db.prepare('SELECT COUNT(*) as cnt FROM feedback').get().cnt;
     const items  = db.prepare(`
-      SELECT f.id, f.chat_id, f.user_msg, f.bot_msg, f.answered_by, f.created_at,
+      SELECT f.id, f.chat_id, f.user_msg, f.bot_msg, f.answered_by, f.rating, f.created_at,
              u.first_name, u.last_name, u.username
       FROM feedback f LEFT JOIN users u ON u.chat_id = f.chat_id
       ORDER BY f.created_at DESC LIMIT ? OFFSET ?

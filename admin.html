@@ -597,7 +597,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       <!-- ══ Feedback page ══ -->
       <div class="page" id="pageFeedback">
         <div class="toolbar" style="margin-bottom:16px">
-          <span style="font-size:13px;color:var(--muted)">Вопросы, получившие отрицательную оценку 👎</span>
+          <span style="font-size:13px;color:var(--muted)">Оценки пользователей</span>
           <button class="btn-ghost-sm" onclick="loadFeedback(0)" style="margin-left:auto">↻ Обновить</button>
         </div>
         <div id="feedbackList"></div>
@@ -974,7 +974,7 @@ async function loadFeedback(offset) {
 function renderFeedbackList(items, total) {
   const el = document.getElementById('feedbackList');
   if (!items.length) {
-    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px 0">Отрицательных отзывов пока нет. 🎉</div>';
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px 0">Оценок пока нет.</div>';
     document.getElementById('feedbackPager').innerHTML = '';
     return;
   }
@@ -982,9 +982,16 @@ function renderFeedbackList(items, total) {
   el.innerHTML = items.map(m => {
     const name  = [m.first_name, m.last_name].filter(Boolean).join(' ') || m.username || (m.chat_id ? `ID ${m.chat_id}` : 'Аноним');
     const uname = m.username ? ` <span style="color:var(--muted)">@${escHtml(m.username)}</span>` : '';
+    const isUp  = m.rating === 'up';
+    const ratingBadge = isUp
+      ? '<span style="color:#16a34a;font-size:11px;font-weight:600">👍 положительный</span>'
+      : '<span style="color:#dc2626;font-size:11px;font-weight:600">👎 отрицательный</span>';
+    const answerStyle = isUp
+      ? 'background:#f0fdf4;border:1px solid #bbf7d0'
+      : 'background:#fff1f2;border:1px solid #fecaca';
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px">
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-        <span>👤 <strong style="color:var(--text)">${escHtml(name)}</strong>${uname} · ${typeLabel(m.answered_by)}</span>
+        <span>👤 <strong style="color:var(--text)">${escHtml(name)}</strong>${uname} · ${typeLabel(m.answered_by)} · ${ratingBadge}</span>
         <span>${fmtDate(m.created_at, true)}</span>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px">
@@ -992,8 +999,8 @@ function renderFeedbackList(items, total) {
         <div style="background:var(--bg);border-radius:10px 10px 10px 2px;padding:8px 12px;font-size:13px;flex:1">${escHtml(m.user_msg || '—')}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-start;flex-direction:row-reverse">
-        <span style="font-size:16px;line-height:1.6;flex-shrink:0">👎</span>
-        <div style="background:#fff1f2;border:1px solid #fecaca;border-radius:10px 10px 2px 10px;padding:8px 12px;font-size:13px;flex:1;color:var(--text);line-height:1.5;max-height:120px;overflow-y:auto">${escHtml((m.bot_msg || '—').slice(0,400))}</div>
+        <span style="font-size:16px;line-height:1.6;flex-shrink:0">🤖</span>
+        <div style="${answerStyle};border-radius:10px 10px 2px 10px;padding:8px 12px;font-size:13px;flex:1;color:var(--text);line-height:1.5;max-height:120px;overflow-y:auto">${escHtml((m.bot_msg || '—').slice(0,400))}</div>
       </div>
     </div>`;
   }).join('');
@@ -1159,7 +1166,7 @@ async function loadAndShow() {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-const PAGE_TITLES = { faq:'FAQ-статьи', searchTest:'🔍 Тест поиска', users:'Пользователи', ailog:'ИИ-Ответы', feedback:'👎 Отзывы', config:'Настройки', stats:'Статистика', portalUsers:'🔐 Управление пользователями' };
+const PAGE_TITLES = { faq:'FAQ-статьи', searchTest:'🔍 Тест поиска', users:'Пользователи', ailog:'ИИ-Ответы', feedback:'💬 Отзывы', config:'Настройки', stats:'Статистика', portalUsers:'🔐 Управление пользователями' };
 
 function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
