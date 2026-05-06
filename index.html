@@ -562,6 +562,7 @@ async function sendFaqById(id) {
   await new Promise(r => setTimeout(r, 600));
   hideTyping();
   appendMessage(entry.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром' });
+  addConvTurn(label, entry.answer);
   trackQuestion(entry.topic, 'faq', label, entry.answer);
   saveHistory('bot', entry.answer);
   isLoading = false;
@@ -614,6 +615,27 @@ function saveHistory(role, text) {
   chatHistory.push({ role, text, time: Date.now() });
   if (chatHistory.length > 50) chatHistory = chatHistory.slice(-50);
   localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+}
+
+// ── Контекст разговора (для Claude, в памяти — сбрасывается при перезагрузке) ──
+let conversationContext = [];
+const CONTEXT_TTL = 30 * 60 * 1000;
+const CONTEXT_MAX = 8; // 4 обмена
+
+function addConvTurn(userText, assistantText) {
+  const now = Date.now();
+  conversationContext = conversationContext.filter(m => now - m.time < CONTEXT_TTL);
+  const strip = t => t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  conversationContext.push({ role: 'user',      content: userText,            time: now });
+  conversationContext.push({ role: 'assistant', content: strip(assistantText), time: now });
+  if (conversationContext.length > CONTEXT_MAX) conversationContext = conversationContext.slice(-CONTEXT_MAX);
+}
+
+function getContextMessages() {
+  const now = Date.now();
+  return conversationContext
+    .filter(m => now - m.time < CONTEXT_TTL)
+    .map(({ role, content }) => ({ role, content }));
 }
 
 // ── Утилиты ──────────────────────────────────────────────────────────────────
@@ -761,6 +783,7 @@ async function chooseFaqId(faqId, originalText, btn) {
     hideTyping();
     if (data.type === 'faq') {
       appendMessage(data.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром' });
+      addConvTurn(originalText, data.answer);
       trackQuestion(data.topic, 'faq', originalText, data.answer);
       saveHistory('bot', data.answer);
     } else { appendMessage(TEXTS[currentLang].error, 'bot'); }
@@ -782,8 +805,9 @@ async function callAI(text) {
   showTyping();
   try {
     const system = currentLang === 'ru' ? SYSTEM_RU : SYSTEM_ES;
+    const messages = [...getContextMessages(), { role: 'user', content: text }];
     const data = await (await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, system, messages:[{role:'user',content:text}] })
+      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, system, messages })
     })).json();
     hideTyping();
     const rawReply = data.content?.[0]?.text || '';
@@ -795,6 +819,7 @@ async function callAI(text) {
     }
     const reply = mdToHtml(rawReply);
     appendMessage(reply, 'bot', { cls: 'badge-ai', label: '🤖 Авто-ответ' });
+    addConvTurn(text, rawReply);
     trackQuestion('Другое', 'ai', text, rawReply);
     saveHistory('bot', reply);
   } catch { hideTyping(); appendMessage(TEXTS[currentLang].error, 'bot'); }
@@ -821,6 +846,7 @@ async function sendMessage() {
     if (askData.type === 'faq') {
       hideTyping();
       appendMessage(askData.answer, 'bot', { cls: 'badge-faq', label: '✅ Проверено Александром' });
+      addConvTurn(text, askData.answer);
       trackQuestion(askData.topic, 'faq', text, askData.answer);
       saveHistory('bot', askData.answer);
     } else if (askData.type === 'clarify') {

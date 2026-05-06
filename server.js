@@ -364,10 +364,26 @@ const sessions = new Map();
 
 // userId → { options:[{id,topic}], query, expiresAt } — pending FAQ clarification
 const pendingClarifications = new Map();
+const conversationHistories = new Map();
+const CONV_TTL = 30 * 60 * 1000;
+const CONV_MAX = 6; // 3 user + 3 assistant messages
 setInterval(() => {
   const now = Date.now();
-  for (const [k, v] of pendingClarifications) if (v.expiresAt < now) pendingClarifications.delete(k);
+  for (const [k, v] of pendingClarifications)  if (v.expiresAt < now) pendingClarifications.delete(k);
+  for (const [k, v] of conversationHistories) if (v.expiresAt < now) conversationHistories.delete(k);
 }, 60 * 1000);
+
+function getConvHistory(chatId) {
+  const h = conversationHistories.get(chatId);
+  return (h && Date.now() < h.expiresAt) ? [...h.messages] : [];
+}
+
+function recordConvTurn(chatId, userText, assistantText) {
+  const msgs = getConvHistory(chatId);
+  msgs.push({ role: 'user', content: userText });
+  msgs.push({ role: 'assistant', content: assistantText });
+  conversationHistories.set(chatId, { messages: msgs.slice(-CONV_MAX), expiresAt: Date.now() + CONV_TTL });
+}
 
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
 
@@ -890,7 +906,7 @@ const server = http.createServer(async (req, res) => {
               await tgCb('sendChatAction', { chat_id: cbChatId, action: 'typing' });
               const sysP = CLIENT_SYSTEM_PROMPT;
               const aiR = await callClaudeInternal({ model: getModel('client'), max_tokens: 600,
-                system: sysP, messages: [{ role: 'user', content: origQuery }] }, apiKey);
+                system: sysP, messages: [...getConvHistory(cbChatId), { role: 'user', content: origQuery }] }, apiKey);
               const reply = aiR.content?.[0]?.text || '';
               if (aiR.usage) recordTokens('client', getModel('client'), aiR.usage.input_tokens, aiR.usage.output_tokens);
               if (!reply || /^\[?SKIP\]?$/i.test(reply.trim())) {
@@ -899,6 +915,7 @@ const server = http.createServer(async (req, res) => {
                 dbLogMessage(cbChatId, origQuery, 'skip', skipMsg);
               } else {
                 await tgCb('sendMessage', { chat_id: cbChatId, text: reply + '\n\n💬 Авто-ответ', reply_markup: markup });
+                recordConvTurn(cbChatId, origQuery, reply);
                 const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
                 dbLogMessage(cbChatId, origQuery, 'ai', reply);
               }
@@ -910,6 +927,7 @@ const server = http.createServer(async (req, res) => {
             const plain = answerToPlain(entry.answer);
             await tgCb('sendMessage', { chat_id: cbChatId, text: plain + '\n\n✅ Проверено Александром',
               parse_mode: 'Markdown', reply_markup: markup });
+            recordConvTurn(cbChatId, pending?.query || '', plain);
             const sf = loadStats(); sf.total++; sf.faq++;
             if (entry.topic) sf.topics[entry.topic] = (sf.topics[entry.topic] || 0) + 1;
             saveStats(sf);
@@ -1080,6 +1098,7 @@ const server = http.createServer(async (req, res) => {
       const faqText   = (bizGreetPrefix ? '👋 Привет!\n\n' : '') + plain + '\n\n✅ Проверено Александром';
       await tg('sendMessage', { ...bizExtra, chat_id: chatId, text: faqText, parse_mode: 'Markdown',
         ...(faqMarkup ? { reply_markup: faqMarkup } : {}) });
+      recordConvTurn(chatId, queryText, plain);
       const sf = loadStats(); sf.total++; sf.faq++;
       if (faqEntry.topic) sf.topics[faqEntry.topic] = (sf.topics[faqEntry.topic] || 0) + 1;
       saveStats(sf);
@@ -1108,7 +1127,8 @@ const server = http.createServer(async (req, res) => {
     const sysPrompt = CLIENT_SYSTEM_PROMPT;
     const aiRes = await callClaudeInternal({
       model: getModel('client'), max_tokens: 600,
-      system: sysPrompt, messages: [{ role: 'user', content: queryText }]
+      system: sysPrompt,
+      messages: [...getConvHistory(chatId), { role: 'user', content: queryText }]
     }, apiKey);
     const reply = aiRes.content?.[0]?.text || '';
     if (aiRes.usage) recordTokens('client', getModel('client'), aiRes.usage.input_tokens, aiRes.usage.output_tokens);
@@ -1127,6 +1147,7 @@ const server = http.createServer(async (req, res) => {
       ...(aiMarkup ? { reply_markup: aiMarkup } : {})
     });
     console.log('[TG] sendMessage ok:', sendRes?.ok, sendRes?.description);
+    recordConvTurn(chatId, queryText, reply);
     const sa = loadStats(); sa.total++; sa.ai++; saveStats(sa);
     dbLogMessage(chatId, text, 'ai', reply);
     return;
