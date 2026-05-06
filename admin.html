@@ -335,7 +335,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <span class="nav-badge" id="navAilogBadge">0</span>
       </button>
       <button class="nav-item" id="navFeedback" onclick="showPage('feedback')">
-        <span class="nav-icon">👎</span> Отзывы
+        <span class="nav-icon">💬</span> Отзывы
         <span class="nav-badge" id="navFeedbackBadge">0</span>
       </button>
       <button class="nav-item" id="navConfig" onclick="showPage('config')">
@@ -964,6 +964,7 @@ async function loadFeedback(offset) {
     const res = await fetch(`/api/admin/feedback?${qs}`, { headers: { 'Authorization': `Bearer ${token}` } });
     const data = await res.json();
     document.getElementById('navFeedbackBadge').textContent = data.total || 0;
+    document.getElementById('headerStats').textContent = `${data.total || 0} записей`;
     renderFeedbackList(data.items || [], data.total || 0);
   } catch {
     el.innerHTML = '<div style="color:var(--red);font-size:13px">Ошибка загрузки</div>';
@@ -992,7 +993,7 @@ function renderFeedbackList(items, total) {
       </div>
       <div style="display:flex;gap:8px;align-items:flex-start;flex-direction:row-reverse">
         <span style="font-size:16px;line-height:1.6;flex-shrink:0">👎</span>
-        <div style="background:#fff1f2;border:1px solid #fecaca;border-radius:10px 10px 2px 10px;padding:8px 12px;font-size:13px;flex:1;color:var(--text);line-height:1.5">${escHtml(m.bot_msg || '—')}</div>
+        <div style="background:#fff1f2;border:1px solid #fecaca;border-radius:10px 10px 2px 10px;padding:8px 12px;font-size:13px;flex:1;color:var(--text);line-height:1.5;max-height:120px;overflow-y:auto">${escHtml((m.bot_msg || '—').slice(0,400))}</div>
       </div>
     </div>`;
   }).join('');
