@@ -692,7 +692,7 @@ function feedback(btn, type) {
   if (type !== 'down') return;
   const msgDiv  = btn.closest('.msg');
   if (!msgDiv) return;
-  const botMsg  = msgDiv.querySelector('.bubble')?.innerText?.trim() || '';
+  const botMsg  = (msgDiv.querySelector('.bubble')?.innerText?.trim() || '').slice(0, 400);
   const msgType = msgDiv.dataset.type || 'ai';
   let userMsg = '';
   let el = msgDiv.previousElementSibling;
@@ -902,10 +902,10 @@ updateStatsUI();
 if (window.Telegram?.WebApp) {
   Telegram.WebApp.ready();
   Telegram.WebApp.expand();
-  Telegram.WebApp.requestFullscreen?.();
+  try { Telegram.WebApp.requestFullscreen?.(); } catch(e) {}
   setTimeout(() => {
     Telegram.WebApp.expand();
-    Telegram.WebApp.requestFullscreen?.();
+    try { Telegram.WebApp.requestFullscreen?.(); } catch(e) {}
     const top = Telegram.WebApp.safeAreaInset?.top || 0;
     if (top > 0) document.querySelector('.wrapper').style.paddingTop = top + 'px';
   }, 300);
