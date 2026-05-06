@@ -675,8 +675,8 @@ function appendMessage(html, role, badge, topic) {
   const badgeHtml = badge ? `<span class="badge ${badge.cls}">${badge.label}</span>` : '';
   const feedbackHtml = role === 'bot' ? `
     <div class="feedback-btns">
-      <button class="fb-btn" onclick="feedback(this,'👍')" title="Полезно">👍</button>
-      <button class="fb-btn" onclick="feedback(this,'👎')" title="Не полезно">👎</button>
+      <button class="fb-btn" onclick="feedback(this,'up')" title="Полезно">👍</button>
+      <button class="fb-btn" onclick="feedback(this,'down')" title="Не полезно">👎</button>
     </div>` : '';
   div.innerHTML = `<div class="bubble">${html}</div>
     <div class="msg-footer">
@@ -689,8 +689,9 @@ function appendMessage(html, role, badge, topic) {
 function feedback(btn, type) {
   btn.parentElement.querySelectorAll('.fb-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  if (type !== '👎') return;
+  if (type !== 'down') return;
   const msgDiv  = btn.closest('.msg');
+  if (!msgDiv) return;
   const botMsg  = msgDiv.querySelector('.bubble')?.innerText?.trim() || '';
   const msgType = msgDiv.dataset.type || 'ai';
   let userMsg = '';
@@ -704,7 +705,9 @@ function feedback(btn, type) {
   }
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
   fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userMsg, botMsg, answeredBy: msgType, tgUser }) }).catch(() => {});
+    body: JSON.stringify({ userMsg, botMsg, answeredBy: msgType, tgUser }) })
+    .then(r => { if (!r.ok) console.error('[feedback] server error', r.status); })
+    .catch(e => console.error('[feedback] fetch error', e));
 }
 
 function showTyping() {
