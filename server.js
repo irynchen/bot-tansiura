@@ -69,6 +69,14 @@ try {
       logout_at  TEXT,
       ip         TEXT
     );
+    CREATE TABLE IF NOT EXISTS feedback (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_id     INTEGER,
+      user_msg    TEXT,
+      bot_msg     TEXT,
+      answered_by TEXT,
+      created_at  TEXT NOT NULL
+    );
   `);
   try { db.prepare('ALTER TABLE messages ADD COLUMN answer TEXT').run(); } catch {}
   try { db.prepare('ALTER TABLE users ADD COLUMN excluded INTEGER DEFAULT 0').run(); } catch {}
@@ -613,6 +621,17 @@ const server = http.createServer(async (req, res) => {
       .map(e => ({ id: e.id, topic: e.topic || '' }));
     if (options.length) json(res, 200, { type: 'clarify', options });
     else                json(res, 200, { type: 'ai' });
+    return;
+  }
+
+  // ── Feedback (client posts 👎 events) ────────────────────────────────────
+  if (req.method === 'POST' && urlPath === '/api/feedback') {
+    const body = await readJsonBody(req);
+    if (db) {
+      db.prepare(`INSERT INTO feedback (chat_id, user_msg, bot_msg, answered_by, created_at) VALUES (?, ?, ?, ?, ?)`)
+        .run(body.tgUser?.id || null, body.userMsg || '', body.botMsg || '', body.answeredBy || 'ai', new Date().toISOString());
+    }
+    json(res, 200, { ok: true });
     return;
   }
 
@@ -1187,6 +1206,24 @@ const server = http.createServer(async (req, res) => {
     if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
     const chatId = parseInt(urlPath.split('/')[4]);
     json(res, 200, dbGetUserMessages(chatId, 50));
+    return;
+  }
+
+  // ── Admin: feedback log ───────────────────────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/api/admin/feedback') {
+    if (!isAuthenticated(req)) { json(res, 401, { error: 'Nicht autorisiert' }); return; }
+    if (!db) { json(res, 200, { items: [], total: 0 }); return; }
+    const qs     = new URLSearchParams(req.url.split('?')[1] || '');
+    const limit  = Math.min(parseInt(qs.get('limit')  || '20'), 100);
+    const offset = parseInt(qs.get('offset') || '0');
+    const total  = db.prepare('SELECT COUNT(*) as cnt FROM feedback').get().cnt;
+    const items  = db.prepare(`
+      SELECT f.id, f.chat_id, f.user_msg, f.bot_msg, f.answered_by, f.created_at,
+             u.first_name, u.last_name, u.username
+      FROM feedback f LEFT JOIN users u ON u.chat_id = f.chat_id
+      ORDER BY f.created_at DESC LIMIT ? OFFSET ?
+    `).all(limit, offset);
+    json(res, 200, { items, total });
     return;
   }
 

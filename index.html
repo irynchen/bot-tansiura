@@ -671,6 +671,7 @@ function appendMessage(html, role, badge, topic) {
   const chat = document.getElementById('chat');
   const div = document.createElement('div');
   div.className = `msg ${role}`;
+  if (role === 'bot' && badge) div.dataset.type = badge.cls === 'badge-faq' ? 'faq' : 'ai';
   const badgeHtml = badge ? `<span class="badge ${badge.cls}">${badge.label}</span>` : '';
   const feedbackHtml = role === 'bot' ? `
     <div class="feedback-btns">
@@ -688,7 +689,22 @@ function appendMessage(html, role, badge, topic) {
 function feedback(btn, type) {
   btn.parentElement.querySelectorAll('.fb-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  // Можно отправить аналитику сюда
+  if (type !== '👎') return;
+  const msgDiv  = btn.closest('.msg');
+  const botMsg  = msgDiv.querySelector('.bubble')?.innerText?.trim() || '';
+  const msgType = msgDiv.dataset.type || 'ai';
+  let userMsg = '';
+  let el = msgDiv.previousElementSibling;
+  while (el) {
+    if (el.classList.contains('msg') && el.classList.contains('user')) {
+      userMsg = el.querySelector('.bubble')?.innerText?.trim() || '';
+      break;
+    }
+    el = el.previousElementSibling;
+  }
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userMsg, botMsg, answeredBy: msgType, tgUser }) }).catch(() => {});
 }
 
 function showTyping() {
