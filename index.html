@@ -620,7 +620,7 @@ function saveHistory(role, text) {
 // ── Контекст разговора (для Claude, в памяти — сбрасывается при перезагрузке) ──
 let conversationContext = [];
 const CONTEXT_TTL = 30 * 60 * 1000;
-const CONTEXT_MAX = 8; // 4 обмена
+const CONTEXT_MAX = 12; // 6 обменов
 
 function addConvTurn(userText, assistantText) {
   const now = Date.now();

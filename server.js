@@ -366,7 +366,7 @@ const sessions = new Map();
 const pendingClarifications = new Map();
 const conversationHistories = new Map();
 const CONV_TTL = 30 * 60 * 1000;
-const CONV_MAX = 6; // 3 user + 3 assistant messages
+const CONV_MAX = 12; // 6 user + 6 assistant messages
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of pendingClarifications)  if (v.expiresAt < now) pendingClarifications.delete(k);
