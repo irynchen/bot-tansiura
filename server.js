@@ -77,6 +77,15 @@ try {
       answered_by TEXT,
       created_at  TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS faq_history (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      faq_id         INTEGER NOT NULL,
+      changed_at     TEXT NOT NULL,
+      changed_by     TEXT NOT NULL,
+      changed_fields TEXT,
+      snapshot       TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_faq_history_faq_id ON faq_history(faq_id);
   `);
   try { db.prepare('ALTER TABLE messages ADD COLUMN answer TEXT').run(); } catch {}
   try { db.prepare('ALTER TABLE feedback ADD COLUMN rating TEXT').run(); } catch {}
@@ -478,14 +487,32 @@ function proxyToClaude(res, bodyStr, apiKey, keyType, model) {
 function normalizeEntry(body, id, username) {
   return {
     id,
-    topic:     body.topic     || '',
-    keys:      body.keys      || [],
-    answer:    body.answer    || '',
-    menuItems: body.menuItems || [],
-    approved:  !!body.approved,
-    updatedAt: new Date().toISOString(),
-    updatedBy: username || 'unknown',
+    topic:            body.topic            || '',
+    keys:             body.keys             || [],
+    questionVariants: body.questionVariants || '',
+    answer:           body.answer           || '',
+    menuItems:        body.menuItems        || [],
+    approved:         !!body.approved,
+    updatedAt:        new Date().toISOString(),
+    updatedBy:        username || 'unknown',
   };
+}
+
+function logFaqHistory(faqId, oldEntry, newEntry, username) {
+  if (!db) return;
+  const changed = [];
+  const fields = ['topic', 'keys', 'questionVariants', 'answer', 'menuItems', 'approved'];
+  for (const f of fields) {
+    const ov = JSON.stringify(oldEntry?.[f] ?? null);
+    const nv = JSON.stringify(newEntry[f] ?? null);
+    if (ov !== nv) changed.push(f);
+  }
+  try {
+    db.prepare(`INSERT INTO faq_history (faq_id, changed_at, changed_by, changed_fields, snapshot)
+                VALUES (?, ?, ?, ?, ?)`)
+      .run(faqId, new Date().toISOString(), username || 'unknown',
+           changed.join(', '), JSON.stringify(newEntry));
+  } catch (e) { console.error('[faq_history] insert error:', e.message); }
 }
 
 // ── FAQ / AI helpers ──────────────────────────────────────────────────────────
@@ -515,9 +542,10 @@ async function callClaudeInternal(bodyObj, apiKey) {
 // Returns [{id, confidence:'high'|'medium'}] sorted by relevance
 async function searchFaqSemantic(queryText, faqEntries, apiKey) {
   if (!faqEntries.length) return [];
-  const index = faqEntries.map(e =>
-    `${e.id}|${e.topic || ''}${e.keys?.length ? '|' + e.keys.join(',') : ''}`
-  ).join('\n');
+  const index = faqEntries.map(e => {
+    const variants = (e.questionVariants || '').split('\n').map(s => s.trim()).filter(Boolean).join(' / ');
+    return `${e.id}|${e.topic || ''}${variants ? '|' + variants : ''}${e.keys?.length ? '|' + e.keys.join(',') : ''}`;
+  }).join('\n');
   const sys = `You are a FAQ search engine for a tax consultant bot in Spain (Russian-speaking clients).
 
 Your task: find which FAQ entry BEST answers the user's question.
@@ -854,24 +882,40 @@ const server = http.createServer(async (req, res) => {
     if (lang !== 'ru') { json(res, 400, { error: 'Ungültige Sprache' }); return; }
 
     if (req.method === 'POST' && id === null) {
-      const body = await readJsonBody(req);
-      const faq  = loadFaq();
+      const body  = await readJsonBody(req);
+      const faq   = loadFaq();
       const maxId = Math.max(0, ...(faq.ru || []).map(e => e.id));
-      const entry = normalizeEntry(body, maxId + 1, getSession(req)?.username);
+      const user  = getSession(req)?.username;
+      const entry = normalizeEntry(body, maxId + 1, user);
       faq.ru = [...(faq.ru || []), entry];
       saveFaq(faq);
+      logFaqHistory(entry.id, null, entry, user);
       json(res, 201, entry);
       return;
     }
 
     if (req.method === 'PUT' && id !== null) {
-      const body = await readJsonBody(req);
-      const faq  = loadFaq();
-      const idx  = (faq.ru || []).findIndex(e => e.id === id);
+      const body  = await readJsonBody(req);
+      const faq   = loadFaq();
+      const idx   = (faq.ru || []).findIndex(e => e.id === id);
       if (idx === -1) { json(res, 404, { error: 'Nicht gefunden' }); return; }
-      faq.ru[idx] = normalizeEntry(body, id, getSession(req)?.username);
+      const user  = getSession(req)?.username;
+      const old   = faq.ru[idx];
+      faq.ru[idx] = normalizeEntry(body, id, user);
       saveFaq(faq);
+      logFaqHistory(id, old, faq.ru[idx], user);
       json(res, 200, faq.ru[idx]);
+      return;
+    }
+
+    if (req.method === 'GET' && id !== null && parts[6] === 'history') {
+      if (!db) { json(res, 200, []); return; }
+      try {
+        const rows = db.prepare(
+          'SELECT id, changed_at, changed_by, changed_fields FROM faq_history WHERE faq_id = ? ORDER BY changed_at DESC LIMIT 50'
+        ).all(id);
+        json(res, 200, rows);
+      } catch (e) { json(res, 500, { error: e.message }); }
       return;
     }
 

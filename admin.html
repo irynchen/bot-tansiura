@@ -124,8 +124,17 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 .modal-close { width:28px; height:28px; border:none; background:var(--bg); border-radius:6px; cursor:pointer; font-size:16px; color:var(--muted); display:flex; align-items:center; justify-content:center; }
 .modal-close:hover { background:var(--border); }
 .modal-body   { padding:24px; }
+.modal-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); padding:0 24px; }
+.modal-tab { padding:10px 18px; font-size:13px; font-weight:500; background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; color:var(--muted); transition:all .15s; margin-bottom:-1px; }
+.modal-tab:hover { color:var(--text); }
+.modal-tab.active { color:var(--gold); border-bottom-color:var(--gold); }
 .modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:10px; }
 .modal-footer-left { display:flex; gap:8px; }
+.history-row { display:flex; gap:12px; align-items:baseline; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.history-row:last-child { border-bottom:none; }
+.history-date { color:var(--muted); white-space:nowrap; font-size:12px; flex-shrink:0; }
+.history-user { font-weight:600; flex-shrink:0; }
+.history-fields { color:var(--muted); }
 .btn-action { padding:9px 16px; background:var(--bg); border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; color:var(--text); transition:all .15s; white-space:nowrap; }
 .btn-action:hover { background:var(--border); }
 .form-field { margin-bottom:12px; }
@@ -745,7 +754,12 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       </div>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tabBtnEditor" onclick="switchModalTab('editor')">✏️ Редактор</button>
+      <button class="modal-tab" id="tabBtnHistory" onclick="switchModalTab('history')">📋 История</button>
+    </div>
+    <!-- TAB: Редактор -->
+    <div class="modal-body" id="tabEditor">
       <div class="form-field">
         <label>Тема</label>
         <input type="text" id="mTopic" placeholder="Например: IVA / НДС">
@@ -753,12 +767,20 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       <div class="form-field">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <label style="margin:0">Ключевые слова</label>
-          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genKeywords(this)" title="Сгенерировать ключевые слова по тексту ответа">✨ Сгенерировать ключевые слова</button>
+          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genKeywords(this)">✨ Сгенерировать</button>
         </div>
         <div class="hint">Enter или , — добавить · Backspace — удалить последний</div>
         <div class="tags-wrap" id="mKeysTags" onclick="document.getElementById('mKeysInput').focus()">
           <input type="text" id="mKeysInput" class="tags-input" placeholder="Добавить слово…">
         </div>
+      </div>
+      <div class="form-field">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="margin:0">Варианты вопросов</label>
+          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genVariants(this)">✨ Сгенерировать</button>
+        </div>
+        <div class="hint">Каждая строка — отдельная формулировка клиента. Используется только для поиска, клиенту не показывается.</div>
+        <textarea id="mVariants" rows="5" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;resize:vertical;font-family:inherit;background:var(--surface);transition:border-color .15s;box-sizing:border-box" placeholder="Можно ли списать расходы на автомобиль?&#10;Как вычесть 50% на машину?&#10;Hacienda принимает расходы на авто?" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=''"></textarea>
       </div>
       <div class="form-field">
         <label>Пункты меню <span style="font-weight:400;color:var(--muted)">(можно несколько)</span></label>
@@ -775,15 +797,21 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
           <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtBr()">↵ Перенос</button>
           <div class="fmt-divider"></div>
           <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtRemove()">✕ Убрать формат</button>
-          <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Генерировать с ИИ</button>
+          <button class="fmt-btn ai-btn" id="aiFmtBtn" onclick="aiFormat()">✨ Сгенерировать ответ</button>
         </div>
-        <div class="editor" id="mAnswer" contenteditable="true" onkeydown="editorKeydown(event)" onpaste="editorPaste(event)"></div>
-        <div class="editor-hint">Если редактор пустой — ИИ сгенерирует ответ по теме и ключевым словам. Если есть текст — улучшит и отформатирует его.</div>
+        <div class="editor" id="mAnswer" contenteditable="true" onkeydown="editorKeydown(event)" onpaste="editorPaste(event)" oninput="updateAiAnswerBtn()"></div>
+        <div class="editor-hint">Пустой редактор — ИИ напишет ответ с нуля. Есть текст — улучшит формулировку и оформление.</div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;font-size:13px;font-weight:500">
         <input type="checkbox" id="mApproved" style="width:16px;height:16px;accent-color:var(--gold)">
         ✅ Проверено и одобрено (показывать значок в списке)
       </label>
+    </div>
+    <!-- TAB: История -->
+    <div class="modal-body" id="tabHistory" style="display:none">
+      <div id="historyList" style="min-height:120px">
+        <div style="color:var(--muted);font-size:13px;text-align:center;padding:40px 0">Загрузка…</div>
+      </div>
     </div>
     <div class="modal-footer">
       <div class="modal-footer-left">
@@ -792,7 +820,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       </div>
       <div style="display:flex;gap:10px;">
         <button class="btn-cancel" onclick="closeModal()">Отмена</button>
-        <button class="btn-save"   onclick="saveEntry()">Сохранить</button>
+        <button class="btn-save" id="modalSaveBtn" onclick="saveEntry()">Сохранить</button>
       </div>
     </div>
   </div>
@@ -1411,14 +1439,53 @@ function collectMenuItems() {
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
+function switchModalTab(tab) {
+  document.getElementById('tabEditor').style.display  = tab === 'editor'  ? '' : 'none';
+  document.getElementById('tabHistory').style.display = tab === 'history' ? '' : 'none';
+  document.getElementById('tabBtnEditor').classList.toggle('active',  tab === 'editor');
+  document.getElementById('tabBtnHistory').classList.toggle('active', tab === 'history');
+  document.getElementById('modalSaveBtn').style.display = tab === 'editor' ? '' : 'none';
+  document.querySelector('.modal-footer-left').style.display = tab === 'editor' ? '' : 'none';
+  if (tab === 'history') loadHistory();
+}
+
+function loadHistory() {
+  if (editingId === null) {
+    document.getElementById('historyList').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:40px 0">История доступна после сохранения</div>';
+    return;
+  }
+  fetch(`/api/admin/faq/ru/${editingId}/history`, { headers: { 'Authorization': `Bearer ${token}` } })
+    .then(r => r.json())
+    .then(rows => {
+      if (!rows.length) {
+        document.getElementById('historyList').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:40px 0">История изменений пуста</div>';
+        return;
+      }
+      const fieldLabels = { topic:'Тема', keys:'Ключевые слова', questionVariants:'Варианты вопросов', answer:'Ответ', menuItems:'Пункты меню', approved:'Статус' };
+      document.getElementById('historyList').innerHTML = rows.map(r => {
+        const d = new Date(r.changed_at).toLocaleString('ru-RU');
+        const fields = (r.changed_fields || '').split(',').map(f => fieldLabels[f.trim()] || f.trim()).filter(Boolean).join(', ');
+        return `<div class="history-row"><span class="history-date">${d}</span><span class="history-user">${r.changed_by}</span><span class="history-fields">${fields || '—'}</span></div>`;
+      }).join('');
+    })
+    .catch(() => { document.getElementById('historyList').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:40px 0">Ошибка загрузки</div>'; });
+}
+
+function updateAiAnswerBtn() {
+  const isEmpty = !document.getElementById('mAnswer').innerText.trim();
+  document.getElementById('aiFmtBtn').textContent = isEmpty ? '✨ Сгенерировать ответ' : '✨ Улучшить и форматировать';
+}
+
 function openModal(id) {
   editingId = id;
+  switchModalTab('editor');
   document.getElementById('modalTitle').textContent = id === null ? 'Новый вопрос' : 'Редактировать вопрос';
   if (id !== null) {
     const entry = (faqData.ru||[]).find(e => e.id === id);
     if (!entry) return;
     document.getElementById('mTopic').value = entry.topic;
     setTagsArray(entry.keys||[]);
+    document.getElementById('mVariants').value = entry.questionVariants || '';
     document.getElementById('mAnswer').innerHTML = entry.answer + '<br>';
     renderMenuItemsEditor(getMenuItems(entry));
     document.getElementById('mApproved').checked = !!entry.approved;
@@ -1430,11 +1497,13 @@ function openModal(id) {
   } else {
     document.getElementById('mTopic').value = '';
     setTagsArray([]);
+    document.getElementById('mVariants').value = '';
     document.getElementById('mAnswer').innerHTML = '<br>';
     renderMenuItemsEditor([]);
     document.getElementById('mApproved').checked = false;
     document.getElementById('modalMeta').textContent = '';
   }
+  updateAiAnswerBtn();
   document.getElementById('modalBackdrop').classList.add('open');
   document.getElementById('mTopic').focus();
 }
@@ -1443,10 +1512,11 @@ function closeModal() { document.getElementById('modalBackdrop').classList.remov
 function backdropClick(e) { if (e.target === document.getElementById('modalBackdrop')) closeModal(); }
 
 async function saveEntry() {
-  const topic  = document.getElementById('mTopic').value.trim();
-  const keys   = getTagsArray();
-  const answer = document.getElementById('mAnswer').innerHTML.trim().replace(/<br\s*\/?>$/i, '').trim();
-  const menuItems = collectMenuItems();
+  const topic            = document.getElementById('mTopic').value.trim();
+  const keys             = getTagsArray();
+  const questionVariants = document.getElementById('mVariants').value.trim();
+  const answer           = document.getElementById('mAnswer').innerHTML.trim().replace(/<br\s*\/?>$/i, '').trim();
+  const menuItems        = collectMenuItems();
   if (!topic)  { showToast('Тема не может быть пустой', 'error'); return; }
   if (!keys.length) { showToast('Нужно хотя бы одно ключевое слово', 'error'); return; }
   if (!answer) { showToast('Ответ не может быть пустым', 'error'); return; }
@@ -1456,7 +1526,7 @@ async function saveEntry() {
     const res = await fetch(url, {
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
-      body: JSON.stringify({ topic, keys, answer, menuItems, approved: document.getElementById('mApproved').checked })
+      body: JSON.stringify({ topic, keys, questionVariants, answer, menuItems, approved: document.getElementById('mApproved').checked })
     });
     if (res.status === 401) { logout(); showToast('Сессия истекла — войдите снова','error'); return; }
     if (!res.ok) { showToast('Ошибка при сохранении','error'); return; }
@@ -1575,49 +1645,52 @@ const AWAY_SYS = `Ты помощник Александра Танцюры — 
 title: 1–4 слова (ситуация, напр. «Отпуск», «Вечером отвечу», «Не на месте»)
 text: 2–5 строк без HTML. Переносы строк: \\n`;
 
-const AI_SYS = `Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания).
+
+const AI_ANSWER_SYS = `Ты помощник налогового консультанта Александра Танцюры (Аликанте, Испания).
 Пишешь FAQ-ответы для русскоязычных клиентов. Отвечай по-русски, кратко и точно.
-Возвращай только JSON: {"html":"...","keywords":[...]}
-HTML: термины/формуляры → <span class="term">слово</span>. Списки: 🔹 пункт, разделены через <br>. Разделы через <br><br>. Без <ul>/<li>. В конце → <strong>совет или призыв</strong>.
-keywords: 6–10 поисковых слов/фраз (русский+испанский), строчными. Правила:
-- Преимущественно одиночные слова: "автономо", "iva", "декларация"
-- Максимум 2 слова в фразе: "sociedad limitada", "налог ип"
-- Никаких предлогов и длинных фраз. Охватывай разные формулировки одной темы.`;
+Возвращай только JSON без markdown: {"html":"..."}
+HTML-правила: термины и номера форм → <span class="term">слово</span>. Списки: 🔹 пункт<br>🔹 пункт. Разделы: <br><br>. Без <ul>/<li>. Важный совет в конце → <strong>текст</strong>.`;
 
 async function aiFormat() {
-  const editor  = document.getElementById('mAnswer');
-  const text    = editor.innerText.trim();
-  const topic   = document.getElementById('mTopic').value.trim();
-  const keys    = getTagsArray().join(', ');
-  const isEmpty = !text;
+  const editor   = document.getElementById('mAnswer');
+  const text     = editor.innerText.trim();
+  const topic    = document.getElementById('mTopic').value.trim();
+  const keys     = getTagsArray().join(', ');
+  const variants = document.getElementById('mVariants').value.trim();
+  const isEmpty  = !text;
   if (isEmpty && !topic) { showToast('Заполните тему или введите текст','error'); return; }
   const btn = document.getElementById('aiFmtBtn');
   btn.textContent = '⏳ Генерирую…'; btn.disabled = true;
-  const prompt = isEmpty
-    ? `Тема FAQ: "${topic}"${keys ? `\nКлючевые слова: ${keys}` : ''}\n\nНапиши полный ответ для FAQ-бота.`
-    : `Улучши и отформатируй этот FAQ-ответ:\n\n${text}`;
+
+  let prompt;
+  if (isEmpty) {
+    prompt = `Тема FAQ: "${topic}"`;
+    if (variants) prompt += `\nВарианты вопросов:\n${variants}`;
+    if (keys)     prompt += `\nКлючевые слова: ${keys}`;
+    prompt += '\n\nНапиши полный ответ для FAQ-бота.';
+  } else {
+    prompt = `Тема FAQ: "${topic}"`;
+    if (variants) prompt += `\nВарианты вопросов:\n${variants}`;
+    if (keys)     prompt += `\nКлючевые слова: ${keys}`;
+    prompt += `\n\nУлучши формулировку и отформатируй этот FAQ-ответ (содержание не менять):\n\n${text}`;
+  }
+
   try {
-    const res  = await fetch('/api/admin/chat', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:AI_SYS,messages:[{role:'user',content:prompt}]}) });
+    const res  = await fetch('/api/admin/chat', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+      body: JSON.stringify({ model: configData.modelAdmin || 'claude-sonnet-4-6', max_tokens: 1500, system: AI_ANSWER_SYS, messages: [{ role:'user', content: prompt }] }) });
     const data = await res.json();
     if (!res.ok) { showToast('API-ошибка: '+(data.error?.message||'').slice(0,80),'error'); return; }
     const raw = data.content?.[0]?.text?.trim() || '';
     let parsed;
     try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim()); }
-    catch { editor.innerHTML = raw; showToast('Готово ✓','success'); btn.textContent='✨ Генерировать с ИИ'; btn.disabled=false; return; }
+    catch { editor.innerHTML = raw; showToast('Готово ✓','success'); updateAiAnswerBtn(); btn.disabled=false; return; }
     if (parsed.html) editor.innerHTML = parsed.html;
-    if (parsed.keywords?.length) setTagsArray(parsed.keywords);
     showToast('Готово ✓','success');
   } catch(err) { showToast('Сетевая ошибка: '+err.message,'error'); }
-  btn.textContent='✨ Генерировать с ИИ'; btn.disabled=false;
+  updateAiAnswerBtn(); btn.disabled = false;
 }
 
-async function genKeywords(btn) {
-  const answerText = document.getElementById('mAnswer').innerText.trim();
-  const topic      = document.getElementById('mTopic').value.trim();
-  if (!answerText && !topic) { showToast('Сначала заполните тему или текст ответа', 'error'); return; }
-  const orig = btn.textContent;
-  btn.textContent = '⏳'; btn.disabled = true;
-  const sys = `Ты эксперт по поисковым запросам для FAQ-бота налогового консультанта в Испании.
+const KEYWORDS_SYS = `Ты эксперт по поисковым запросам для FAQ-бота налогового консультанта в Испании.
 
 Твоя задача: выбрать 8–15 ключевых слов, по которым пользователи реально найдут этот ответ.
 
@@ -1629,21 +1702,24 @@ async function genKeywords(btn) {
 5. Включай: главные понятия темы, аббревиатуры (igf, iva, sl), номера форм (modelo 303), синонимы, профессиональный сленг
 6. НЕ включай: предлоги, союзы, вводные слова, фразы длиннее 2 слов, общие слова типа "налог" "испания" без уточнения
 
-Примеры ХОРОШИХ ключевых слов:
-- Для "Налог на роскошь": роскошь, богатство, состояние, patrimonio, igf, grandes fortunas, modelo 714, нерезидент
-- Для "НДС": iva, ндс, декларация, modelo 303, modelo 390, квартальный
-- Для "Автономо": автономо, autónomo, фрилансер, самозанятый, регистрация, alta
-
 Отвечай ТОЛЬКО JSON без markdown: {"keywords":["слово1","слово2",...]}`;
-  const content = answerText
-    ? `Тема: ${topic || '—'}\n\nТекст ответа:\n${answerText.slice(0, 1500)}`
-    : `Тема: ${topic}`;
+
+async function genKeywords(btn) {
+  const topic      = document.getElementById('mTopic').value.trim();
+  const variants   = document.getElementById('mVariants').value.trim();
+  const answerText = document.getElementById('mAnswer').innerText.trim();
+  if (!topic && !answerText) { showToast('Сначала заполните тему или текст ответа', 'error'); return; }
+  const orig = btn.textContent;
+  btn.textContent = '⏳'; btn.disabled = true;
+  let content = `Тема: ${topic || '—'}`;
+  if (variants) content += `\n\nВарианты вопросов:\n${variants}`;
+  if (answerText) content += `\n\nТекст ответа:\n${answerText.slice(0, 1500)}`;
   try {
     const res = await fetch('/api/admin/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ model: configData.modelAdmin || 'claude-sonnet-4-6', max_tokens: 300,
-        system: sys, messages: [{ role: 'user', content }] })
+        system: KEYWORDS_SYS, messages: [{ role: 'user', content }] })
     });
     const data = await res.json();
     if (!res.ok) { showToast('API-ошибка: ' + (data.error?.message || '').slice(0, 80), 'error'); return; }
@@ -1652,6 +1728,39 @@ async function genKeywords(btn) {
     try { parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()); }
     catch { showToast('Ошибка разбора ответа', 'error'); return; }
     if (parsed.keywords?.length) { setTagsArray(parsed.keywords); showToast('Ключевые слова обновлены ✓', 'success'); }
+  } catch(err) { showToast('Сетевая ошибка: ' + err.message, 'error'); }
+  btn.textContent = orig; btn.disabled = false;
+}
+
+async function genVariants(btn) {
+  const topic      = document.getElementById('mTopic').value.trim();
+  const keys       = getTagsArray().join(', ');
+  const answerText = document.getElementById('mAnswer').innerText.trim();
+  if (!topic) { showToast('Сначала заполните тему', 'error'); return; }
+  const orig = btn.textContent;
+  btn.textContent = '⏳'; btn.disabled = true;
+  const sys = `Ты помощник налогового консультанта в Испании. Твоя задача — сгенерировать варианты вопросов, которые русскоязычные клиенты могут задать боту по данной теме.
+
+ПРАВИЛА:
+1. Пиши живым разговорным языком — так, как реально пишут клиенты, не официально.
+2. Разные формулировки одного и того же вопроса: короткие, длинные, с испанскими терминами, без них.
+3. Включай русские и испанские слова вперемешку — клиенты часто так пишут.
+4. 6–14 вариантов. Каждый на отдельной строке. Без нумерации, без тире в начале.
+5. Возвращай только список вариантов, без лишнего текста.`;
+  let content = `Тема: ${topic}`;
+  if (keys)       content += `\nКлючевые слова: ${keys}`;
+  if (answerText) content += `\n\nКраткое содержание ответа:\n${answerText.slice(0, 800)}`;
+  try {
+    const res = await fetch('/api/admin/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ model: configData.modelAdmin || 'claude-sonnet-4-6', max_tokens: 600,
+        system: sys, messages: [{ role: 'user', content }] })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('API-ошибка: ' + (data.error?.message || '').slice(0, 80), 'error'); return; }
+    const raw = (data.content?.[0]?.text || '').trim();
+    if (raw) { document.getElementById('mVariants').value = raw; showToast('Варианты вопросов обновлены ✓', 'success'); }
   } catch(err) { showToast('Сетевая ошибка: ' + err.message, 'error'); }
   btn.textContent = orig; btn.disabled = false;
 }
