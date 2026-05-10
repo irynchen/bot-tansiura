@@ -959,6 +959,15 @@ const server = http.createServer(async (req, res) => {
       if (cbData.startsWith('clarify:') && cbChatId) {
         const choice  = cbData.replace('clarify:', '');
         const pending = pendingClarifications.get(cbUid);
+
+        // Keyboard sofort entfernen — verhindert Doppel-Klick
+        if (pending?.messageId) {
+          const editPayload = { chat_id: pending.chatId || cbChatId, message_id: pending.messageId, reply_markup: { inline_keyboard: [] } };
+          if (pending.bizConnId) editPayload.business_connection_id = pending.bizConnId;
+          tgCb('editMessageReplyMarkup', editPayload).catch(() => {});
+        }
+
+        // Prevent double processing: delete pending before async work
         pendingClarifications.delete(cbUid);
         const markup  = { inline_keyboard: [[{ text: '🌐 Открыть бота', web_app: { url: BOT_URL } }]] };
 
@@ -1172,12 +1181,17 @@ const server = http.createServer(async (req, res) => {
 
     if (clarifyOpts.length) {
       const userId = msg.from?.id || chatId;
-      pendingClarifications.set(userId, { options: clarifyOpts, query: queryText, expiresAt: Date.now() + 5 * 60 * 1000 });
       const keyboard = clarifyOpts.map(opt => [{ text: opt.topic, callback_data: `clarify:${opt.id}` }]);
       keyboard.push([{ text: '❓ Ничего из этого → Авто-ответ', callback_data: 'clarify:__ai__' }]);
-      await tg('sendMessage', { ...bizExtra, chat_id: chatId,
+      const sentMsg = await tg('sendMessage', { ...bizExtra, chat_id: chatId,
         text: '🤔 Уточните, пожалуйста, о чём ваш вопрос:',
         reply_markup: { inline_keyboard: keyboard } });
+      pendingClarifications.set(userId, {
+        options: clarifyOpts, query: queryText,
+        chatId, bizConnId: bizConnId || null,
+        messageId: sentMsg?.result?.message_id || null,
+        expiresAt: Date.now() + 5 * 60 * 1000
+      });
       dbLogMessage(chatId, text, 'clarify', '🤔 Уточните, пожалуйста, о чём ваш вопрос:');
       return;
     }
