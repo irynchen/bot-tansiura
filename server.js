@@ -543,7 +543,7 @@ async function callClaudeInternal(bodyObj, apiKey) {
 async function searchFaqSemantic(queryText, faqEntries, apiKey) {
   if (!faqEntries.length) return [];
   const index = faqEntries.map(e => {
-    const variants = (e.questionVariants || '').split('\n').map(s => s.trim()).filter(Boolean).join(' / ');
+    const variants = (e.questionVariants || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 4).join(' / ');
     return `${e.id}|${e.topic || ''}${variants ? '|' + variants : ''}${e.keys?.length ? '|' + e.keys.join(',') : ''}`;
   }).join('\n');
   const sys = `You are a FAQ search engine for a tax consultant bot in Spain (Russian-speaking clients).
@@ -1324,7 +1324,7 @@ server.listen(PORT, () => {
     tgCall('deleteWebhook', { drop_pending_updates: false })
       .then(() => tgCall('setWebhook', {
         url: webhookUrl,
-        allowed_updates: ['message', 'business_message', 'business_connection', 'edited_business_message']
+        allowed_updates: ['message', 'callback_query', 'business_message', 'business_connection', 'edited_business_message']
       }))
       .then(r => console.log('[TG] Webhook gesetzt:', r.description, '| allowed:', r.ok))
       .then(() => tgCall('getWebhookInfo'))
