@@ -282,6 +282,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 #toast { position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:8px; font-size:14px; font-weight:500; display:none; z-index:200; box-shadow:0 4px 16px rgba(0,0,0,.12); }
 #toast.success { background:var(--green-bg); color:#15803d; border:1px solid var(--green-border); }
 #toast.error   { background:var(--red-bg);   color:#b91c1c; border:1px solid var(--red-border); }
+#toast.warn    { background:var(--amber-bg); color:#92400e; border:1px solid var(--amber); white-space:pre-line; max-width:380px; }
 </style>
 </head>
 <body>
@@ -403,6 +404,9 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
             <input class="search-input" type="text" id="searchInput" placeholder="Поиск по теме, ключевому слову или ответу…" oninput="onSearch(this.value)">
           </div>
           <button class="btn-add" onclick="openModal(null)">＋ Новая FAQ-статья</button>
+          <button class="filter-btn" onclick="exportFaq()" title="Alle Artikel als Excel herunterladen">⬇ Экспорт</button>
+          <button class="filter-btn" onclick="importFaqPick()" title="Artikel aus Excel-Datei importieren">⬆ Импорт</button>
+          <input type="file" id="importFileInput" accept=".xlsx" style="display:none" onchange="importFaqFile(this)">
         </div>
         <div class="filter-bar">
           <select class="filter-select" id="filterGroup" onchange="applyFilters()">
@@ -2305,6 +2309,62 @@ function fmtDate(iso, withTime = false) {
   if (!withTime) return date;
   const time = d.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
   return `${date} ${time}`;
+}
+
+// ── Export / Import ───────────────────────────────────────────────────────────
+
+async function exportFaq() {
+  try {
+    const res = await fetch('/api/admin/faq/export', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) { showToast('Exportfehler: ' + res.status, 'error'); return; }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'faq-export-' + new Date().toISOString().slice(0, 10) + '.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch { showToast('Exportfehler', 'error'); }
+}
+
+function importFaqPick() {
+  document.getElementById('importFileInput').click();
+}
+
+async function importFaqFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    try {
+      const res = await fetch('/api/admin/faq/import', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body:    JSON.stringify({ data: base64 }),
+      });
+      if (res.status === 401) { logout(); return; }
+      const result = await res.json();
+      if (!res.ok) { showToast('Importfehler: ' + (result.error || res.status), 'error'); return; }
+      const msg = `Импорт: ${result.created} создано, ${result.updated} обновлено`
+        + (result.errors?.length ? '\n⚠ ' + result.errors.join('\n⚠ ') : '');
+      showToast(msg, result.errors?.length ? 'warn' : 'success');
+      const faqRes = await fetch('/api/faq');
+      if (faqRes.ok) {
+        faqData   = await faqRes.json();
+        allFaqRaw = faqData.ru || [];
+        buildCategorySelect();
+        renderTable();
+      }
+    } catch { showToast('Importfehler', 'error'); }
+  };
+  reader.readAsDataURL(file);
 }
 
 // ── Toast / utils ─────────────────────────────────────────────────────────────

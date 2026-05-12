@@ -5,6 +5,8 @@ const path = require('path');
 const crypto = require('crypto');
 let nodemailer = null;
 try { nodemailer = require('nodemailer'); } catch(e) {}
+let ExcelJS = null;
+try { ExcelJS = require('exceljs'); } catch(e) {}
 
 const API_KEY        = process.env.ANTHROPIC_API_KEY || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -880,6 +882,122 @@ const server = http.createServer(async (req, res) => {
     const parts = urlPath.split('/');
     const lang = parts[4];
     const id   = parts[5] ? parseInt(parts[5]) : null;
+
+    // ── Export ────────────────────────────────────────────────────────────────
+    if (req.method === 'GET' && lang === 'export') {
+      if (!ExcelJS) { json(res, 501, { error: 'exceljs nicht verfügbar' }); return; }
+      const faq = loadFaq();
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('FAQ');
+      ws.columns = [
+        { header: 'id',               key: 'id',               width: 6  },
+        { header: 'topic',            key: 'topic',            width: 35 },
+        { header: 'keys',             key: 'keys',             width: 45 },
+        { header: 'questionVariants', key: 'questionVariants', width: 60 },
+        { header: 'answer',           key: 'answer',           width: 80 },
+        { header: 'menuItems',        key: 'menuItems',        width: 55 },
+        { header: 'approved',         key: 'approved',         width: 10 },
+        { header: 'updatedAt',        key: 'updatedAt',        width: 22 },
+        { header: 'updatedBy',        key: 'updatedBy',        width: 15 },
+      ];
+      for (const e of faq.ru || []) {
+        ws.addRow({
+          id:               e.id,
+          topic:            e.topic || '',
+          keys:             (e.keys || []).join(', '),
+          questionVariants: e.questionVariants || '',
+          answer:           e.answer || '',
+          menuItems:        JSON.stringify(e.menuItems || []),
+          approved:         e.approved ? 'TRUE' : 'FALSE',
+          updatedAt:        e.updatedAt || '',
+          updatedBy:        e.updatedBy || '',
+        });
+      }
+      ws.getRow(1).font = { bold: true };
+      ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4A017' } };
+      ws.views = [{ state: 'frozen', ySplit: 1 }];
+      ws.eachRow((row) => { row.alignment = { wrapText: true, vertical: 'top' }; });
+      const buf = await wb.xlsx.writeBuffer();
+      const date = new Date().toISOString().slice(0, 10);
+      res.writeHead(200, {
+        'Content-Type':        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="faq-export-${date}.xlsx"`,
+        'Content-Length':      buf.byteLength,
+      });
+      res.end(buf);
+      return;
+    }
+
+    // ── Import ────────────────────────────────────────────────────────────────
+    if (req.method === 'POST' && lang === 'import') {
+      if (!ExcelJS) { json(res, 501, { error: 'exceljs nicht verfügbar' }); return; }
+      const body = await readJsonBody(req);
+      if (!body.data) { json(res, 400, { error: 'Keine Datei übergeben' }); return; }
+      let rows;
+      try {
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(Buffer.from(body.data, 'base64'));
+        const ws = wb.worksheets[0];
+        if (!ws) throw new Error('Leere Datei');
+        const headers = {};
+        ws.getRow(1).eachCell((cell, col) => {
+          if (cell.value) headers[col] = String(cell.value).trim();
+        });
+        rows = [];
+        ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+          if (rowNumber === 1) return;
+          const obj = {};
+          row.eachCell({ includeEmpty: true }, (cell, col) => {
+            if (headers[col]) {
+              let v = cell.value;
+              if (v instanceof Date) v = v.toISOString();
+              obj[headers[col]] = v === null || v === undefined ? '' : String(v);
+            }
+          });
+          rows.push(obj);
+        });
+      } catch (e) {
+        json(res, 400, { error: 'Datei-Fehler: ' + e.message }); return;
+      }
+      const faq  = loadFaq();
+      const user = getSession(req)?.username;
+      let created = 0, updated = 0, errors = [];
+      for (const row of rows) {
+        try {
+          const idRaw = row.id ? String(row.id).trim() : '';
+          const entryId = idRaw ? parseInt(idRaw) : null;
+          const keys = row.keys ? row.keys.split(',').map(k => k.trim()).filter(Boolean) : [];
+          let menuItems = [];
+          try { menuItems = JSON.parse(row.menuItems || '[]'); } catch { menuItems = []; }
+          const data = {
+            topic:            String(row.topic || '').trim(),
+            keys,
+            questionVariants: String(row.questionVariants || ''),
+            answer:           String(row.answer || ''),
+            menuItems,
+            approved:         String(row.approved || '').toUpperCase() === 'TRUE',
+          };
+          if (!data.topic) { errors.push('Zeile ohne Thema übersprungen'); continue; }
+          if (entryId !== null && !isNaN(entryId)) {
+            const idx = (faq.ru || []).findIndex(e => e.id === entryId);
+            if (idx === -1) { errors.push(`ID ${entryId} nicht gefunden`); continue; }
+            const old = faq.ru[idx];
+            faq.ru[idx] = normalizeEntry(data, entryId, user);
+            logFaqHistory(entryId, old, faq.ru[idx], user);
+            updated++;
+          } else {
+            const maxId = Math.max(0, ...(faq.ru || []).map(e => e.id));
+            const newEntry = normalizeEntry(data, maxId + 1, user);
+            faq.ru.push(newEntry);
+            logFaqHistory(newEntry.id, null, newEntry, user);
+            created++;
+          }
+        } catch (e) { errors.push('Zeile-Fehler: ' + e.message); }
+      }
+      saveFaq(faq);
+      json(res, 200, { created, updated, errors });
+      return;
+    }
 
     if (lang !== 'ru') { json(res, 400, { error: 'Ungültige Sprache' }); return; }
 
