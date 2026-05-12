@@ -420,6 +420,11 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
             <option value="1">✅ Одобрено</option>
             <option value="0">○ Не проверено</option>
           </select>
+          <select class="filter-select" id="filterDate" onchange="applyFilters()">
+            <option value="">Все даты</option>
+            <option value="changed_today">Изменено сегодня</option>
+            <option value="created_today">Создано сегодня</option>
+          </select>
           <button class="filter-btn" id="btnResetFilters" onclick="resetFilters()" style="display:none">✕ Сбросить фильтры</button>
           <span class="filter-sep">|</span>
           <button class="filter-btn" onclick="collapseAllGroups()">▶ Свернуть все</button>
@@ -428,7 +433,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th>Тема</th><th>Ключевые слова</th><th>Меню</th><th>Превью ответа</th><th>Действия</th>
+              <th style="width:44px">ID</th><th>Тема</th><th>Ключевые слова</th><th>Меню</th><th>Превью ответа</th><th>Действия</th>
             </tr></thead>
             <tbody id="faqBody"></tbody>
           </table>
@@ -1225,6 +1230,7 @@ const collapsedGroups = new Set();
 let filterGroupVal = '';
 let filterMenuVal = '';
 let filterApprovedVal = '';
+let filterDateVal = '';
 
 function onSearch(v) { searchQuery = v.trim().toLowerCase(); renderTable(); }
 
@@ -1232,17 +1238,19 @@ function applyFilters() {
   filterGroupVal    = document.getElementById('filterGroup').value;
   filterMenuVal     = document.getElementById('filterMenu').value;
   filterApprovedVal = document.getElementById('filterApproved').value;
-  const active = filterGroupVal || filterMenuVal || filterApprovedVal;
+  filterDateVal     = document.getElementById('filterDate').value;
+  const active = filterGroupVal || filterMenuVal || filterApprovedVal || filterDateVal;
   document.getElementById('btnResetFilters').style.display = active ? '' : 'none';
   document.querySelectorAll('.filter-select').forEach(s => s.classList.toggle('active', !!s.value));
   renderTable();
 }
 
 function resetFilters() {
-  filterGroupVal = filterMenuVal = filterApprovedVal = '';
+  filterGroupVal = filterMenuVal = filterApprovedVal = filterDateVal = '';
   document.getElementById('filterGroup').value    = '';
   document.getElementById('filterMenu').value     = '';
   document.getElementById('filterApproved').value = '';
+  document.getElementById('filterDate').value     = '';
   document.getElementById('btnResetFilters').style.display = 'none';
   document.querySelectorAll('.filter-select').forEach(s => s.classList.remove('active'));
   renderTable();
@@ -1280,12 +1288,14 @@ function expandAllGroups() {
 }
 
 function getFiltered() {
+  const today = new Date().toISOString().slice(0, 10);
   let entries = faqData.ru || [];
   if (searchQuery) {
     entries = entries.filter(e =>
       e.topic.toLowerCase().includes(searchQuery) ||
       (e.keys||[]).some(k => k.toLowerCase().includes(searchQuery)) ||
-      stripHtml(e.answer).toLowerCase().includes(searchQuery)
+      stripHtml(e.answer).toLowerCase().includes(searchQuery) ||
+      String(e.id).includes(searchQuery)
     );
   }
   if (filterGroupVal) {
@@ -1296,6 +1306,8 @@ function getFiltered() {
   }
   if (filterApprovedVal === '1') entries = entries.filter(e => !!e.approved);
   if (filterApprovedVal === '0') entries = entries.filter(e => !e.approved);
+  if (filterDateVal === 'changed_today')  entries = entries.filter(e => (e.updatedAt  || '').slice(0,10) === today);
+  if (filterDateVal === 'created_today')  entries = entries.filter(e => (e.createdAt  || '').slice(0,10) === today);
   return entries;
 }
 
@@ -1324,6 +1336,7 @@ function renderRow(e, hidden) {
     ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${new Date(e.updatedAt).toLocaleDateString('ru-RU')}${e.updatedBy?' · '+escHtml(e.updatedBy):''}</div>`
     : '';
   return `<tr${hidden?' class="group-hidden"':''}>
+    <td style="color:var(--muted);font-size:11px;text-align:center;white-space:nowrap">${e.id}</td>
     <td style="font-weight:500;min-width:130px">${approvedBadge}${highlight(e.topic,searchQuery)}${metaHtml}</td>
     <td><div class="keys-wrap">${keysHtml}</div></td>
     <td>${menuHtml || '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
@@ -1344,12 +1357,12 @@ function renderTable() {
 
   const tbody = document.getElementById('faqBody');
   if (!entries.length) {
-    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">${searchQuery ? 'Ничего не найдено по запросу «'+escHtml(searchQuery)+'»' : 'Нет записей. Нажмите «Новый вопрос».'}</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">${searchQuery ? 'Ничего не найдено по запросу «'+escHtml(searchQuery)+'»' : 'Нет записей. Нажмите «Новый вопрос».'}</div></td></tr>`;
     return;
   }
 
   // Flat list when searching or filtering
-  if (searchQuery || filterGroupVal || filterMenuVal || filterApprovedVal) {
+  if (searchQuery || filterGroupVal || filterMenuVal || filterApprovedVal || filterDateVal) {
     tbody.innerHTML = entries.map(e => renderRow(e, false)).join('');
     return;
   }
@@ -1378,7 +1391,7 @@ function renderTable() {
     const name       = cat?.name || key.split(' ').slice(1).join(' ') || key || '— без категории —';
     const safeKey    = JSON.stringify(key);
     html += `<tr class="cat-group-row${collapsed?' collapsed':''}" onclick='toggleGroup(${safeKey})'>
-      <td colspan="5"><span class="g-arrow">▼</span> <span class="g-icon">${escHtml(icon)}</span> <span class="g-name">${escHtml(name)}</span><span class="g-count">${arr.length}</span></td>
+      <td colspan="6"><span class="g-arrow">▼</span> <span class="g-icon">${escHtml(icon)}</span> <span class="g-name">${escHtml(name)}</span><span class="g-count">${arr.length}</span></td>
     </tr>`;
     arr.forEach(e => { html += renderRow(e, collapsed); });
   });

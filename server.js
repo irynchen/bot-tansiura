@@ -489,7 +489,7 @@ function proxyToClaude(res, bodyStr, apiKey, keyType, model) {
 // ── Normalize FAQ entry (supports old + new menuItems format) ─────────────────
 
 function normalizeEntry(body, id, username) {
-  return {
+  const entry = {
     id,
     topic:            body.topic            || '',
     keys:             body.keys             || [],
@@ -500,6 +500,8 @@ function normalizeEntry(body, id, username) {
     updatedAt:        new Date().toISOString(),
     updatedBy:        username || 'unknown',
   };
+  if (body.createdAt) entry.createdAt = body.createdAt;
+  return entry;
 }
 
 function logFaqHistory(faqId, oldEntry, newEntry, username) {
@@ -982,12 +984,12 @@ const server = http.createServer(async (req, res) => {
             const idx = (faq.ru || []).findIndex(e => e.id === entryId);
             if (idx === -1) { errors.push(`ID ${entryId} nicht gefunden`); continue; }
             const old = faq.ru[idx];
-            faq.ru[idx] = normalizeEntry(data, entryId, user);
+            faq.ru[idx] = normalizeEntry({ ...data, createdAt: old.createdAt }, entryId, user);
             logFaqHistory(entryId, old, faq.ru[idx], user);
             updated++;
           } else {
             const maxId = Math.max(0, ...(faq.ru || []).map(e => e.id));
-            const newEntry = normalizeEntry(data, maxId + 1, user);
+            const newEntry = normalizeEntry({ ...data, createdAt: new Date().toISOString() }, maxId + 1, user);
             faq.ru.push(newEntry);
             logFaqHistory(newEntry.id, null, newEntry, user);
             created++;
@@ -1006,7 +1008,7 @@ const server = http.createServer(async (req, res) => {
       const faq   = loadFaq();
       const maxId = Math.max(0, ...(faq.ru || []).map(e => e.id));
       const user  = getSession(req)?.username;
-      const entry = normalizeEntry(body, maxId + 1, user);
+      const entry = normalizeEntry({ ...body, createdAt: body.createdAt || new Date().toISOString() }, maxId + 1, user);
       faq.ru = [...(faq.ru || []), entry];
       saveFaq(faq);
       logFaqHistory(entry.id, null, entry, user);
@@ -1021,7 +1023,7 @@ const server = http.createServer(async (req, res) => {
       if (idx === -1) { json(res, 404, { error: 'Nicht gefunden' }); return; }
       const user  = getSession(req)?.username;
       const old   = faq.ru[idx];
-      faq.ru[idx] = normalizeEntry(body, id, user);
+      faq.ru[idx] = normalizeEntry({ ...body, createdAt: old.createdAt }, id, user);
       saveFaq(faq);
       logFaqHistory(id, old, faq.ru[idx], user);
       json(res, 200, faq.ru[idx]);
