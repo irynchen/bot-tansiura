@@ -566,7 +566,7 @@ CRITICAL RULES:
 
 Reply ONLY valid JSON (no markdown): {"matches":[{"id":"...","confidence":"high|medium"}]}`;
   try {
-    const searchModel = getModel('client');
+    const searchModel = 'claude-haiku-4-5-20251001';
     const result = await callClaudeInternal({
       model: searchModel, max_tokens: 400,
       system: sys,
