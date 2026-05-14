@@ -770,7 +770,10 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
     <!-- TAB: Редактор -->
     <div class="modal-body" id="tabEditor">
       <div class="form-field">
-        <label>Тема</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="margin:0">Тема</label>
+          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genTopic(this)">✨ Сгенерировать</button>
+        </div>
         <input type="text" id="mTopic" placeholder="Например: IVA / НДС">
       </div>
       <div class="form-field">
@@ -1778,6 +1781,37 @@ async function genVariants(btn) {
     if (!res.ok) { showToast('API-ошибка: ' + (data.error?.message || '').slice(0, 80), 'error'); return; }
     const raw = (data.content?.[0]?.text || '').trim();
     if (raw) { document.getElementById('mVariants').value = raw; showToast('Варианты вопросов обновлены ✓', 'success'); }
+  } catch(err) { showToast('Сетевая ошибка: ' + err.message, 'error'); }
+  btn.textContent = orig; btn.disabled = false;
+}
+
+async function genTopic(btn) {
+  const answerText = document.getElementById('mAnswer').innerText.trim();
+  const variants   = document.getElementById('mVariants').value.trim();
+  if (!answerText && !variants) { showToast('Сначала заполните ответ или варианты вопросов', 'error'); return; }
+  const orig = btn.textContent;
+  btn.textContent = '⏳'; btn.disabled = true;
+  const sys = `Ты помощник налогового консультанта в Испании. Придумай краткое и точное название темы для FAQ-статьи на основе предоставленных данных.
+
+ПРАВИЛА:
+1. Название должно быть на русском языке (допустимо использовать испанские термины и аббревиатуры — IVA, IBI, NIE, IRPF и т.п.).
+2. Длина: 2–6 слов — чётко и ёмко, без лишних слов.
+3. Передавай суть: не «Вопрос о налоге», а «Налог IBI при покупке недвижимости».
+4. Возвращай ТОЛЬКО название темы — без кавычек, без объяснений.`;
+  let content = '';
+  if (variants)   content += `Варианты вопросов клиентов:\n${variants.slice(0, 600)}`;
+  if (answerText) content += `${content ? '\n\n' : ''}Текст ответа:\n${answerText.slice(0, 800)}`;
+  try {
+    const res = await fetch('/api/admin/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ model: configData.modelAdmin || 'claude-sonnet-4-6', max_tokens: 60,
+        system: sys, messages: [{ role: 'user', content }] })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('API-ошибка: ' + (data.error?.message || '').slice(0, 80), 'error'); return; }
+    const raw = (data.content?.[0]?.text || '').trim().replace(/^["«»]+|["«»]+$/g, '');
+    if (raw) { document.getElementById('mTopic').value = raw; showToast('Тема обновлена ✓', 'success'); }
   } catch(err) { showToast('Сетевая ошибка: ' + err.message, 'error'); }
   btn.textContent = orig; btn.disabled = false;
 }
