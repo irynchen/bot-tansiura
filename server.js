@@ -568,13 +568,17 @@ Reply ONLY valid JSON (no markdown): {"matches":[{"id":"...","confidence":"high|
   try {
     const searchModel = getModel('client');
     const result = await callClaudeInternal({
-      model: searchModel, max_tokens: 200,
+      model: searchModel, max_tokens: 400,
       system: sys,
       messages: [{ role: 'user', content: `Question: "${queryText}"\n\nFAQ index:\n${index}` }]
     }, apiKey);
     if (result.usage) recordTokens('client', searchModel, result.usage.input_tokens, result.usage.output_tokens);
     const raw = result.content?.[0]?.text?.trim() || '';
-    const parsed = JSON.parse(raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim());
+    // Robust JSON extraction: find first { … last }
+    const start = raw.indexOf('{');
+    const end   = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('no JSON in response: ' + raw.slice(0, 80));
+    const parsed = JSON.parse(raw.slice(start, end + 1));
     return Array.isArray(parsed.matches) ? parsed.matches : [];
   } catch (e) {
     console.error('[searchFaqSemantic] error:', e.message);
