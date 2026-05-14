@@ -138,6 +138,8 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
 .btn-action { padding:9px 16px; background:var(--bg); border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; color:var(--text); transition:all .15s; white-space:nowrap; }
 .btn-action:hover { background:var(--border); }
 .form-field { margin-bottom:12px; }
+#tabEditor .form-field { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:8px; }
+#tabEditor .editor-section { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-top:8px; }
 .form-field label { display:block; font-size:13px; font-weight:500; margin-bottom:4px; }
 .form-field .hint { font-size:12px; color:var(--muted); margin-bottom:6px; }
 .form-field input  { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; transition:border-color .15s; }
@@ -772,14 +774,14 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       <div class="form-field">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <label style="margin:0">Тема</label>
-          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genTopic(this)">✨ Сгенерировать</button>
+          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genTopic(this)" title="Сгенерировать тему на основе ответа и вариантов вопросов">✨ Тему</button>
         </div>
         <input type="text" id="mTopic" placeholder="Например: IVA / НДС">
       </div>
       <div class="form-field">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <label style="margin:0">Ключевые слова</label>
-          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genKeywords(this)">✨ Сгенерировать</button>
+          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genKeywords(this)" title="Сгенерировать ключевые слова для поиска на основе ответа">✨ Ключевые слова</button>
         </div>
         <div class="hint">Enter или , — добавить · Backspace — удалить последний</div>
         <div class="tags-wrap" id="mKeysTags" onclick="document.getElementById('mKeysInput').focus()">
@@ -789,7 +791,7 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       <div class="form-field">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <label style="margin:0">Варианты вопросов</label>
-          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genVariants(this)">✨ Сгенерировать</button>
+          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genVariants(this)" title="Сгенерировать формулировки вопросов клиентов на основе ответа">✨ Варианты</button>
         </div>
         <div class="hint">Каждая строка — отдельная формулировка клиента. Используется только для поиска, клиенту не показывается.</div>
         <textarea id="mVariants" rows="5" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;resize:vertical;font-family:inherit;background:var(--surface);transition:border-color .15s;box-sizing:border-box" placeholder="Можно ли списать расходы на автомобиль?&#10;Как вычесть 50% на машину?&#10;Hacienda принимает расходы на авто?" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=''"></textarea>
