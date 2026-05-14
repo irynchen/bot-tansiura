@@ -1785,9 +1785,13 @@ async function genVariants(btn) {
   btn.textContent = orig; btn.disabled = false;
 }
 
+function stripSurrogates(str) {
+  return str.replace(/[\uD800-\uDFFF]/g, '');
+}
+
 async function genTopic(btn) {
-  const answerText = document.getElementById('mAnswer').innerText.trim();
-  const variants   = document.getElementById('mVariants').value.trim();
+  const answerText = stripSurrogates(document.getElementById('mAnswer').innerText.trim());
+  const variants   = stripSurrogates(document.getElementById('mVariants').value.trim());
   if (!answerText && !variants) { showToast('Сначала заполните ответ или варианты вопросов', 'error'); return; }
   const orig = btn.textContent;
   btn.textContent = '⏳'; btn.disabled = true;
