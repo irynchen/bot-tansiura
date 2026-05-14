@@ -780,21 +780,21 @@ mark { background:#fef9c3; border-radius:2px; padding:0 2px; }
       </div>
       <div class="form-field">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <label style="margin:0">Ключевые слова</label>
-          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genKeywords(this)" title="Сгенерировать ключевые слова для поиска на основе ответа">✨ Ключевые слова</button>
-        </div>
-        <div class="hint">Enter или , — добавить · Backspace — удалить последний</div>
-        <div class="tags-wrap" id="mKeysTags" onclick="document.getElementById('mKeysInput').focus()">
-          <input type="text" id="mKeysInput" class="tags-input" placeholder="Добавить слово…">
-        </div>
-      </div>
-      <div class="form-field">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <label style="margin:0">Варианты вопросов</label>
           <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genVariants(this)" title="Сгенерировать формулировки вопросов клиентов на основе ответа">✨ Варианты</button>
         </div>
         <div class="hint">Каждая строка — отдельная формулировка клиента. Используется только для поиска, клиенту не показывается.</div>
         <textarea id="mVariants" rows="5" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;resize:vertical;font-family:inherit;background:var(--surface);transition:border-color .15s;box-sizing:border-box" placeholder="Можно ли списать расходы на автомобиль?&#10;Как вычесть 50% на машину?&#10;Hacienda принимает расходы на авто?" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor=''"></textarea>
+      </div>
+      <div class="form-field">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="margin:0">Ключевые слова</label>
+          <button class="btn-ghost-sm" style="font-size:12px;padding:3px 10px" onclick="genKeywords(this)" title="Сгенерировать ключевые слова для поиска на основе ответа и вариантов">✨ Ключевые слова</button>
+        </div>
+        <div class="hint">Enter или , — добавить · Backspace — удалить последний</div>
+        <div class="tags-wrap" id="mKeysTags" onclick="document.getElementById('mKeysInput').focus()">
+          <input type="text" id="mKeysInput" class="tags-input" placeholder="Добавить слово…">
+        </div>
       </div>
       <div class="form-field">
         <label>Пункты меню <span style="font-weight:400;color:var(--muted)">(можно несколько)</span></label>
